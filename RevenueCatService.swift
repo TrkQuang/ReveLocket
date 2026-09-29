@@ -33,9 +33,10 @@ public struct RevenueCatCustomerSummary: Codable {
 public final class RevenueCatService {
     public static let shared = RevenueCatService()
 
-    public static let defaultPublicKey = "appl_JngFETzdodyLmCREOlwTUtXdQik"
-    public static let defaultAppUserID = "1a73l0yKjleF7djpO7oYeP4u8ri1"
-    public static let defaultOfferingID = "locket_199"
+    public static let defaultEnvironment: RevenueCatEnvironment = .testStore
+    public static let defaultPublicKey = "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
+    public static let defaultAppUserID = "kqdepzai"
+    public static let defaultOfferingID = "default"
     public static let defaultPackageID = "$rc_annual"
     public static let defaultProductID = "locket_1600_1y"
     public static let defaultEntitlementID = "gold"
@@ -52,10 +53,10 @@ public final class RevenueCatService {
     public func configure(apiKey: String = defaultPublicKey, appUserID: String = defaultAppUserID) {
         Purchases.logLevel = .debug
         Purchases.configure(withAPIKey: apiKey, appUserID: appUserID)
-        print("🚀 [RevenueCatService] Configured with Public Key: \(apiKey), User ID: \(appUserID)")
+        print("🚀 [RevenueCatService] Configured with Key: \(apiKey), User ID: \(appUserID)")
     }
 
-    // MARK: - 2. Fetch & Validate Offering & Package
+    // MARK: - 2. Fetch & Validate Offering & Package (Section 3)
     public func fetchAndVerifyPackage(
         offeringID: String = defaultOfferingID,
         packageID: String = defaultPackageID,
@@ -64,7 +65,8 @@ public final class RevenueCatService {
         print("📦 [RevenueCatService] Fetching offerings from RevenueCat...")
         let offerings = try await Purchases.shared.offerings()
 
-        guard let targetOffering = offerings.all[offeringID] else {
+        // Ưu tiên: offerings.current hoặc offerings.all[offeringID] hoặc offerings.all["default"]
+        guard let targetOffering = offerings.current ?? offerings.all[offeringID] ?? offerings.all["default"] else {
             let available = offerings.all.keys.joined(separator: ", ")
             throw NSError(
                 domain: "RevenueCatService",

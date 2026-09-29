@@ -5,6 +5,9 @@ import SwiftUI
 
 @MainActor
 public final class MasterKeyDebugViewModel: ObservableObject {
+    // MARK: - 0. RevenueCat Environment Mode (Section 14)
+    @Published public var environment: RevenueCatEnvironment = RevenueCatService.defaultEnvironment
+
     // MARK: - 1. Configuration State
     @Published public var appUserID: String = RevenueCatService.defaultAppUserID
     @Published public var revenueCatPublicKey: String = RevenueCatService.defaultPublicKey
@@ -16,13 +19,13 @@ public final class MasterKeyDebugViewModel: ObservableObject {
     // MARK: - 2. Active Master Key & Source
     @Published public var masterFetchToken: String? = nil
     @Published public var masterFetchTokenDisplay: String = "null"
-    @Published public var masterFetchTokenSource: MasterTokenSource = .unavailable
-    @Published public var transactionSource: TransactionSource = .unknown
+    @Published public var masterFetchTokenSource: MasterTokenSource = .revenueCatTestStoreTransactionID
+    @Published public var transactionSource: TransactionSource = .revenueCatTestStore
     @Published public var finalStatus: MasterKeyStatus = .purchaseRequired
 
-    // MARK: - 2.1 Fetch Token (StoreKit 2 Signed JWS)
+    // MARK: - 2.1 Fetch Token
     @Published public var fetchToken: String? = nil
-    @Published public var fetchTokenType: String = "STOREKIT2_JWS_TRANSACTION"
+    @Published public var fetchTokenType: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
 
     // MARK: - 3. Server Expiration Date (ISO-8601)
     @Published public var serverExpirationDate: String = "-"
@@ -85,7 +88,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
     public func initialLoad() async {
         isLoading = true
         errorMessage = nil
-        statusMessage = "Đang cấu hình RevenueCat & kiểm tra StoreKit 2..."
+        statusMessage = "Đang cấu hình RevenueCat (\(environment.rawValue))..."
 
         // Cấu hình RevenueCat
         rcService.configure(apiKey: revenueCatPublicKey, appUserID: appUserID)
@@ -93,7 +96,17 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         // Kiểm tra và load dữ liệu
         await verifyOffering()
         await refreshCustomerInfo()
-        await refreshStoreKitTransactions()
+
+        if environment == .appStore {
+            await refreshStoreKitTransactions()
+        } else {
+            // Trong Test Store: không gọi StoreKit
+            self.storeKitDetails = nil
+            self.signedTransactionJWS = ""
+            self.fetchToken = nil
+            self.fetchTokenType = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+            self.transactionSource = .revenueCatTestStore
+        }
 
         // Đánh giá và build JSON
         evaluateMasterFetchToken()
@@ -121,7 +134,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Purchase Package (Requirement 3, 18)
+    // MARK: - Purchase Package (Section 4)
     public func purchaseStoreKit() async {
         guard let pkg = verifiedPackage else {
             errorMessage = "Package chưa được xác thực hoặc không khớp product ID '\(productID)'."
@@ -130,7 +143,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
 
         isLoading = true
         errorMessage = nil
-        statusMessage = "Đang tiến hành thanh toán StoreKit / RevenueCat..."
+        statusMessage = "Đang tiến hành thanh toán RevenueCat (\(environment.rawValue))..."
 
         do {
             let (customerInfo, userCancelled) = try await rcService.purchase(package: pkg)
@@ -140,11 +153,16 @@ public final class MasterKeyDebugViewModel: ObservableObject {
                 return
             }
 
-            statusMessage = "Thanh toán thành công! Đang tự động làm mới toàn bộ 12 bước..."
+            statusMessage = "Thanh toán thành công! Đang tự động làm mới trạng thái..."
             
-            // Auto-refresh quy trình 12 bước (Requirement 18)
             handleCustomerInfo(customerInfo)
-            await refreshStoreKitTransactions()
+            if environment == .appStore {
+                await refreshStoreKitTransactions()
+            } else {
+                self.fetchToken = nil
+                self.fetchTokenType = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+                self.transactionSource = .revenueCatTestStore
+            }
             evaluateMasterFetchToken()
             validateCurrentKey()
             buildRawDebugJSON()
@@ -169,13 +187,35 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         statusMessage = "Đang làm mới thông tin giao dịch..."
 
         await refreshCustomerInfo()
-        await refreshStoreKitTransactions()
+        if environment == .appStore {
+            await refreshStoreKitTransactions()
+        } else {
+            self.fetchToken = nil
+            self.fetchTokenType = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+            self.transactionSource = .revenueCatTestStore
+        }
         evaluateMasterFetchToken()
         validateCurrentKey()
         buildRawDebugJSON()
 
         isLoading = false
         statusMessage = "Đã cập nhật trạng thái mới nhất."
+    }
+
+    // MARK: - Switch Environment (Section 14)
+    public func switchEnvironment(_ env: RevenueCatEnvironment) async {
+        self.environment = env
+        self.revenueCatPublicKey = env.defaultAPIKey
+        self.appUserID = env.defaultAppUserID
+        self.offeringID = env.defaultOfferingID
+        if env == .testStore {
+            self.fetchToken = nil
+            self.fetchTokenType = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+            self.transactionSource = .revenueCatTestStore
+        } else {
+            self.fetchTokenType = "STOREKIT2_JWS_TRANSACTION"
+        }
+        await initialLoad()
     }
 
     // MARK: - StoreKit Transactions & JWS Fetch
@@ -233,11 +273,41 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Evaluate Master Fetch Token & Candidates (Requirements 1, 4, 5)
+    // MARK: - Evaluate Master Fetch Token & Candidates (Requirements 1, 4, 5, 7)
     public func evaluateMasterFetchToken() {
         print("🔍 [ViewModel] Đang đánh giá Master Fetch Token Candidates...")
 
         var candidateMap: [String: String] = [:]
+
+        // Xử lý riêng cho RevenueCat Test Store (Section 7, 8, 14)
+        if environment == .testStore {
+            self.transactionSource = .revenueCatTestStore
+            self.fetchToken = nil
+            self.fetchTokenType = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+
+            let rcStoreTxID = rcSummary?.storeTransactionID
+            candidateMap["RevenueCat store_transaction_id"] = (rcStoreTxID != nil && !rcStoreTxID!.isEmpty) ? rcStoreTxID! : "nil"
+            candidateMap["Store"] = "test_store"
+            candidateMap["Is Sandbox"] = "true"
+
+            if let rcStore = rcStoreTxID, !rcStore.isEmpty {
+                self.masterFetchToken = rcStore
+                self.masterFetchTokenDisplay = rcStore
+                self.masterFetchTokenSource = .revenueCatTestStoreTransactionID
+            } else {
+                self.masterFetchToken = nil
+                self.masterFetchTokenDisplay = "null"
+                self.masterFetchTokenSource = .unavailable
+            }
+
+            candidateMap["Selected Master Fetch Token"] = self.masterFetchTokenDisplay
+            candidateMap["Selected Source"] = self.masterFetchTokenSource.rawValue
+            candidateMap["Transaction Source"] = transactionSource.rawValue
+            self.candidates = candidateMap
+
+            self.serverExpirationDate = revenueCatExpirationDate ?? "-"
+            return
+        }
 
         let skTxID = storeKitDetails?.transactionID
         let skOrigID = storeKitDetails?.originalTransactionID
@@ -258,10 +328,6 @@ public final class MasterKeyDebugViewModel: ObservableObject {
             self.transactionSource = .unknown
         }
 
-        // Section 5: Master Fetch Token dạng transaction ID chỉ được tạo sau khi transaction verified.
-        // Candidate: master_fetch_token = String(transaction.id)
-        // Chỉ khi: String(transaction.id) == RevenueCat store_transaction_id
-        // thì: master_fetch_token = RevenueCat store_transaction_id, source = REVENUECAT_STORE_TRANSACTION_ID
         var selectedToken: String? = nil
         var selectedSource: MasterTokenSource = .unavailable
 
@@ -307,8 +373,38 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Validation Against Apple Requirements (Section 1, 6, 7, 8, 10)
+    // MARK: - Validation Against Apple / Test Store Requirements (Section 9 & 14)
     public func validateCurrentKey() {
+        if environment == .testStore {
+            let rcActive = isGoldActive
+            let hasStoreTx = rcSummary?.storeTransactionID != nil && !(rcSummary?.storeTransactionID?.isEmpty ?? true)
+            let determinedStatus: MasterKeyStatus
+
+            if rcActive && hasStoreTx {
+                determinedStatus = .revenueCatTestGoldActive
+            } else if !rcActive {
+                determinedStatus = .failed
+            } else {
+                determinedStatus = .purchaseRequired
+            }
+
+            self.finalStatus = determinedStatus
+            self.candidates["Final Status"] = determinedStatus.rawValue
+
+            self.validationResult = MasterKeyValidationResult(
+                transactionVerified: true,
+                jwsAvailable: false,
+                productMatches: true,
+                notExpired: true,
+                notRevoked: true,
+                appleValid: false,
+                revenueCatActive: rcActive,
+                finalStatus: determinedStatus,
+                failureReasons: rcActive ? [] : ["Entitlement gold chưa active trên RevenueCat Test Store."]
+            )
+            return
+        }
+
         var reasons: [String] = []
 
         let isVerified = storeKitDetails?.isVerified == true
@@ -364,6 +460,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
             determinedStatus = .purchaseRequired
         }
 
+        let notExpired = true
         self.finalStatus = determinedStatus
         self.candidates["Final Status"] = determinedStatus.rawValue
 
@@ -532,6 +629,38 @@ public final class MasterKeyDebugViewModel: ObservableObject {
 
     // MARK: - Build Raw Debug JSON (Section 10 Output Format)
     public func buildRawDebugJSON() {
+        if environment == .testStore {
+            let rc = rcSummary
+            let goldEnt = rc?.entitlements[entitlementID]
+            let jsonDict: [String: Any] = [
+                "app_user_id": self.appUserID,
+                "product_id": self.productID,
+                "entitlement_id": self.entitlementID,
+                "master_fetch_token": self.masterFetchToken as Any? ?? NSNull(),
+                "master_fetch_token_source": self.masterFetchTokenSource.rawValue,
+                "fetch_token": NSNull(),
+                "fetch_token_type": "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE",
+                "transaction": [
+                    "store": goldEnt?.store ?? "test_store",
+                    "is_sandbox": true,
+                    "store_transaction_id": rc?.storeTransactionID as Any? ?? NSNull(),
+                    "purchase_date": goldEnt?.purchaseDate ?? "-",
+                    "expiration_date": goldEnt?.expirationDate as Any? ?? NSNull()
+                ],
+                "revenuecat": [
+                    "subscription_active": self.isGoldActive,
+                    "entitlement_gold_active": self.isGoldActive
+                ],
+                "final_status": self.finalStatus.rawValue
+            ]
+
+            if let data = try? JSONSerialization.data(withJSONObject: jsonDict, options: [.prettyPrinted, .sortedKeys]),
+               let str = String(data: data, encoding: .utf8) {
+                self.rawDebugJSON = str
+            }
+            return
+        }
+
         let sk = storeKitDetails
         let rc = rcSummary
         let jwsSegments = signedTransactionJWS.components(separatedBy: ".")

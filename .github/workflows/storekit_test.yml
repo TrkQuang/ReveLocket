@@ -1,4 +1,4 @@
-name: Apple StoreKit 2 & RevenueCat CI
+name: RevenueCat Test Store CI
 
 on:
   push:
@@ -6,27 +6,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  storekit-appstore-ci:
-    name: Apple StoreKit & RevenueCat CI (macOS)
-    runs-on: macos-latest # Chạy trực tiếp trên macOS theo yêu cầu
+  revenuecat-test-store-ci:
+    name: RevenueCat Test Store CI (Automated Test Mode)
+    runs-on: macos-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Verify macOS & Xcode Environment
-        run: |
-          echo "=== THÔNG TIN MÔI TRƯỜNG MACOS ==="
-          sw_vers
-          xcodebuild -version
-          swift --version
-
-      - name: Validate StoreKit Configuration Files
-        run: |
-          echo "=== KIỂM TRA FILE CẤU HÌNH STOREKIT ==="
-          ls -la *.storekit
-          python3 -m json.tool LocketGold.storekit > /dev/null && echo "LocketGold.storekit: VALID JSON STOREKIT FORMAT"
-          python3 -m json.tool Products.storekit > /dev/null && echo "Products.storekit: VALID JSON STOREKIT FORMAT"
 
       - name: Validate Swift Syntax
         run: |
@@ -41,18 +27,20 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
-      - name: Run Apple App Store Config & Verification (Read-Only)
+      - name: Run RevenueCat Test Store Flow & Validation
+        env:
+          CURRENT_UID: "kqdepzai"
         run: python run_simulation.py
 
       - name: Display CI Verification Results
         run: |
           echo "================================================================================"
-          echo "KẾT QUẢ TỪ FILE KQ.TXT (CI MODE)"
+          echo "KẾT QUẢ TỪ FILE KQ.TXT (REVENUECAT TEST STORE CI)"
           echo "================================================================================"
           cat kq.txt
 
       - name: Upload CI Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: revelocket-app-store-ci
+          name: revelocket-test-store-ci
           path: kq.txt

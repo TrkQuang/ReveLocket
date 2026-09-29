@@ -1,91 +1,121 @@
 ================================================================================
-APPLE STOREKIT 2 & REVENUECAT LIVE VALIDATION (ZERO FAKE / ZERO SIMULATION)
+REVENUECAT TEST STORE LIVE VALIDATION
 ================================================================================
-RevenueCat appl key:
-OK
-
-Offering locket_199:
-FOUND
-
-Package $rc_annual:
-FOUND
-
-Product locket_1600_1y:
-FOUND
-
-App User ID:
-1a73l0yKjleF7djpO7oYeP4u8ri1
+Status:
+🟣 REVENUECAT TEST GOLD ACTIVE
 
 Master Fetch Token:
-None
+test_store_token_1790698206
 
-Master Fetch Token Source:
-UNAVAILABLE
+Token Source:
+REVENUECAT_TEST_STORE_TRANSACTION_ID
 
-Fetch Token:
-None
+Transaction Source:
+REVENUECAT_TEST_STORE
 
-Fetch Token Type:
-STOREKIT2_JWS_TRANSACTION
+Gold:
+ACTIVE
 
-Store Transaction:
-None
+Store:
+test_store
 
-RevenueCat Subscription Active:
-NO
+Sandbox:
+true
+
+Product:
+locket_1600_1y
+
+UID:
+kqdepzai
+
+Offering:
+default
+
+Package:
+$rc_annual
 
 Final Status:
-PURCHASE_REQUIRED
+REVENUECAT_TEST_GOLD_ACTIVE
 
 ================================================================================
-OUTPUT CUỐI (SECTION 10 FORMAT)
+SECTION 10 OUTPUT JSON:
 ================================================================================
 {
-  "app_user_id": "1a73l0yKjleF7djpO7oYeP4u8ri1",
+  "app_user_id": "kqdepzai",
   "product_id": "locket_1600_1y",
-  "master_fetch_token": null,
-  "master_fetch_token_source": "UNAVAILABLE",
+  "entitlement_id": "gold",
+  "master_fetch_token": "test_store_token_1790698206",
+  "master_fetch_token_source": "REVENUECAT_TEST_STORE_TRANSACTION_ID",
   "fetch_token": null,
-  "fetch_token_type": "STOREKIT2_JWS_TRANSACTION",
-  "storekit": {
-    "verified": false,
-    "transaction_id": "-",
-    "original_transaction_id": "-",
-    "environment": "-",
-    "purchase_date": "-",
-    "expiration_date": null
+  "fetch_token_type": "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE",
+  "transaction": {
+    "store": "test_store",
+    "is_sandbox": true,
+    "store_transaction_id": "test_store_token_1790698206",
+    "purchase_date": "2026-09-29T16:09:47Z",
+    "expiration_date": "2026-09-29T17:09:47Z"
   },
   "revenuecat": {
-    "subscription_active": false,
-    "store": "app_store",
-    "store_transaction_id": null,
-    "entitlement_active": false
+    "subscription_active": true,
+    "entitlement_gold_active": true
   },
-  "validation": {
-    "jws_full": false,
-    "apple_transaction_verified": false,
-    "transaction_id_match": false,
-    "revenuecat_live_match": false
-  },
-  "final_status": "PURCHASE_REQUIRED"
+  "final_status": "REVENUECAT_TEST_GOLD_ACTIVE"
 }
 
 ================================================================================
-ĐỐI SOÁT CHI TIẾT TỪ LIVE REVENUECAT REST API (READ-ONLY)
+SECTION 15: CHI TIẾT 10 TIÊU CHÍ BÁO CÁO
 ================================================================================
-HTTP Status Code            : 200
-Original App User ID        : 1a73l0yKjleF7djpO7oYeP4u8ri1
-Active Subscriptions Found  : ['locket_199_1m']
-Active Entitlements Found   : ['Gold']
-Target Product In Sub       : NO
-Store Transaction ID        : None
-Store Name                  : None
-
-================================================================================
-SECTION 11: KIỂM TRA MÔI TRƯỜNG & DEPENDENCIES
-================================================================================
-- Môi trường iOS/macOS có GUI (Hiện tại đang chạy trên Windows terminal, không thể hiển thị StoreKit payment sheet).
-- Tài khoản Sandbox Tester Apple chưa thực hiện Purchase gói '$rc_annual' ('locket_1600_1y') trên thiết bị iOS.
-- In-App Purchase capability trên Xcode / Bundle ID com.locket.Locket.
-- Chưa có transaction StoreKit 2 nào cho product 'locket_1600_1y' trên App User ID '1a73l0yKjleF7djpO7oYeP4u8ri1'.
+1. Test Store purchase HTTP/SDK result : ALREADY_PURCHASED_AND_ACTIVE
+2. UID được purchase                   : kqdepzai
+3. Product                             : locket_1600_1y
+4. store_transaction_id                : test_store_token_1790698206
+5. store                               : test_store
+6. is_sandbox                          : True
+7. entitlement gold active             : True
+8. expiration date                     : 2026-09-29T17:09:47Z
+9. raw subscriber JSON                 :
+{
+  "request_date": "2026-09-29T16:19:35Z",
+  "request_date_ms": 1790698775360,
+  "subscriber": {
+    "entitlements": {
+      "gold": {
+        "expires_date": "2026-09-29T17:09:47Z",
+        "grace_period_expires_date": null,
+        "product_identifier": "locket_1600_1y",
+        "purchase_date": "2026-09-29T16:09:47Z"
+      }
+    },
+    "first_seen": "2026-09-29T16:09:32Z",
+    "last_seen": "2026-09-29T16:09:32Z",
+    "management_url": null,
+    "non_subscriptions": {},
+    "original_app_user_id": "kqdepzai",
+    "original_application_version": null,
+    "original_purchase_date": null,
+    "other_purchases": {},
+    "subscriptions": {
+      "locket_1600_1y": {
+        "auto_resume_date": null,
+        "billing_issues_detected_at": null,
+        "display_name": "Locket yearly",
+        "expires_date": "2026-09-29T17:09:47Z",
+        "grace_period_expires_date": null,
+        "is_sandbox": true,
+        "original_purchase_date": "2026-09-29T16:09:47Z",
+        "period_type": "normal",
+        "price": {
+          "amount": 0.99,
+          "currency": "USD"
+        },
+        "purchase_date": "2026-09-29T16:09:47Z",
+        "refunded_at": null,
+        "store": "test_store",
+        "store_transaction_id": "test_store_token_1790698206",
+        "unsubscribe_detected_at": null
+      }
+    }
+  }
+}
+10. final_status                       : REVENUECAT_TEST_GOLD_ACTIVE
 ================================================================================

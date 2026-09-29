@@ -1,8 +1,36 @@
 import Foundation
 import SwiftUI
 
+// MARK: - 0. RevenueCat Environment Mode (Section 14)
+public enum RevenueCatEnvironment: String, Codable, CaseIterable {
+    case testStore = "test_store"
+    case appStore = "app_store"
+
+    public var defaultAPIKey: String {
+        switch self {
+        case .testStore: return "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
+        case .appStore: return "appl_JngFETzdodyLmCREOlwTUtXdQik"
+        }
+    }
+
+    public var defaultAppUserID: String {
+        switch self {
+        case .testStore: return "kqdepzai"
+        case .appStore: return "1a73l0yKjleF7djpO7oYeP4u8ri1"
+        }
+    }
+
+    public var defaultOfferingID: String {
+        switch self {
+        case .testStore: return "default"
+        case .appStore: return "locket_199"
+        }
+    }
+}
+
 // MARK: - 1. Environment & Source Types
 public enum TransactionSource: String, Codable, CaseIterable {
+    case revenueCatTestStore = "REVENUECAT_TEST_STORE"
     case appleProduction = "APPLE_PRODUCTION"
     case appleSandbox = "APPLE_SANDBOX"
     case xcodeLocalStoreKit = "XCODE_LOCAL_STOREKIT"
@@ -10,6 +38,7 @@ public enum TransactionSource: String, Codable, CaseIterable {
 
     public var displayName: String {
         switch self {
+        case .revenueCatTestStore: return "RevenueCat Test Store (Web/Sandbox)"
         case .appleProduction: return "Apple App Store (Production)"
         case .appleSandbox: return "Apple Sandbox / TestFlight"
         case .xcodeLocalStoreKit: return "Xcode Local StoreKit (.storekit)"
@@ -24,6 +53,7 @@ public enum TransactionSource: String, Codable, CaseIterable {
 
 // MARK: - 1.1 Config Flag (Requirement 12)
 public enum PurchaseEnvironment: String, Codable, CaseIterable {
+    case revenueCatTestStore = "REVENUECAT_TEST_STORE"
     case appleSandbox = "APPLE_SANDBOX"
     case appleProduction = "APPLE_PRODUCTION"
     case xcodeLocal = "XCODE_LOCAL"
@@ -31,9 +61,11 @@ public enum PurchaseEnvironment: String, Codable, CaseIterable {
 
 // MARK: - 2. Final Verification Status
 public enum MasterKeyStatus: String, Codable, CaseIterable {
+    case revenueCatTestGoldActive = "REVENUECAT_TEST_GOLD_ACTIVE"
     case verifiedActive = "VERIFIED_ACTIVE"
     case purchaseRequired = "PURCHASE_REQUIRED"
     case revenueCatSyncFailed = "REVENUECAT_SYNC_FAILED"
+    case failed = "FAILED"
     case inactive = "INACTIVE"
     case transactionOwnerMismatch = "TRANSACTION_OWNER_MISMATCH"
     case localStoreKitVerified = "LOCAL_STOREKIT_VERIFIED"
@@ -45,11 +77,12 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
 
     public var badgeColor: Color {
         switch self {
+        case .revenueCatTestGoldActive: return .purple
         case .verifiedActive: return .green
         case .purchaseRequired, .appleSandboxPurchaseRequired: return .orange
         case .revenueCatSyncFailed: return .orange
         case .inactive: return .gray
-        case .transactionOwnerMismatch: return .red
+        case .transactionOwnerMismatch, .failed: return .red
         case .localStoreKitVerified, .localTestOnly: return .yellow
         case .invalid, .invalidDebugData: return .red
         case .unverified: return .gray
@@ -58,11 +91,12 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
 
     public var badgeIcon: String {
         switch self {
+        case .revenueCatTestGoldActive: return "crown.fill"
         case .verifiedActive: return "checkmark.seal.fill"
         case .purchaseRequired, .appleSandboxPurchaseRequired: return "cart.badge.questionmark"
         case .revenueCatSyncFailed: return "arrow.triangle.2.circlepath.circle.fill"
         case .inactive: return "minus.circle.fill"
-        case .transactionOwnerMismatch: return "person.crop.circle.badge.xmark"
+        case .transactionOwnerMismatch, .failed: return "person.crop.circle.badge.xmark"
         case .localStoreKitVerified: return "checkmark.shield.fill"
         case .localTestOnly: return "exclamationmark.triangle.fill"
         case .invalid, .invalidDebugData: return "xmark.octagon.fill"
@@ -73,6 +107,7 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
 
 // MARK: - 3. Master Fetch Token Source
 public enum MasterTokenSource: String, Codable {
+    case revenueCatTestStoreTransactionID = "REVENUECAT_TEST_STORE_TRANSACTION_ID"
     case storeKitTransactionID = "STOREKIT_TRANSACTION_ID"
     case storeKitOriginalTransactionID = "STOREKIT_ORIGINAL_TRANSACTION_ID"
     case revenueCatStoreTransactionID = "REVENUECAT_STORE_TRANSACTION_ID"

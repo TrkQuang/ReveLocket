@@ -3,9 +3,9 @@ import RevenueCat
 
 // MARK: - Configuration Constants
 enum RevenueCatConfig {
-    static let apiKey = "appl_JngFETzdodyLmCREOlwTUtXdQik"
-    static let appUserID = "1a73l0yKjleF7djpO7oYeP4u8ri1"
-    static let offeringID = "locket_199"
+    static let apiKey = "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
+    static let appUserID = "kqdepzai"
+    static let offeringID = "default"
     static let packageID = "$rc_annual"
     static let expectedProductID = "locket_1600_1y"
     static let entitlementID = "gold"
@@ -20,13 +20,12 @@ struct RevenueCatTestApp: App {
         // Bật log mức Debug để in chi tiết mọi request, response, token và metadata từ SDK
         Purchases.logLevel = .debug
 
-        // Cấu hình Purchases SDK
+        // Cấu hình Purchases SDK cho RevenueCat Test Store
         Purchases.configure(
-            with: Configuration.builder(withAPIKey: RevenueCatConfig.apiKey)
-                .with(appUserID: RevenueCatConfig.appUserID)
-                .build()
+            withAPIKey: RevenueCatConfig.apiKey,
+            appUserID: RevenueCatConfig.appUserID
         )
-        print("🚀 [RevenueCat] Initialized with App User ID: \(RevenueCatConfig.appUserID)")
+        print("🚀 [RevenueCat Test Store] Initialized with App User ID: \(RevenueCatConfig.appUserID)")
     }
 
     var body: some Scene {
@@ -46,7 +45,7 @@ final class RevenueCatViewModel: ObservableObject {
     @Published var packageIdentifier: String = RevenueCatConfig.packageID
     @Published var offeringIdentifier: String = RevenueCatConfig.offeringID
 
-    @Published var store: String = "app_store"
+    @Published var store: String = "test_store"
     @Published var storeTransactionIdentifier: String = "-"
     @Published var transactionIdentifier: String = "-"
     @Published var originalTransactionIdentifier: String = "nil"
@@ -66,10 +65,10 @@ final class RevenueCatViewModel: ObservableObject {
 
     // 4. Token & Security Investigation (Kiểm tra fetch_token, receipt, JWS)
     @Published var fetchToken: String? = nil
-    @Published var fetchTokenType: String = "STOREKIT2_JWS_TRANSACTION"
-    @Published var fetchTokenStatus: String = "STOREKIT 2 JWS (NO TRANSACTION YET)"
-    @Published var receiptStatus: String = "STOREKIT 2 (NO LEGACY RECEIPT)"
-    @Published var jwsStatus: String = "STOREKIT 2 JWS SIGNED BY APPLE"
+    @Published var fetchTokenType: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+    @Published var fetchTokenStatus: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+    @Published var receiptStatus: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+    @Published var jwsStatus: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
 
     // 5. Raw Data & JSON Dumps
     @Published var unifiedDebugJSON: String = ""
@@ -105,14 +104,18 @@ final class RevenueCatViewModel: ObservableObject {
 
         do {
             let offerings = try await Purchases.shared.offerings()
-            if let defaultOffering = offerings.offering(identifier: RevenueCatConfig.offeringID) {
+            if let defaultOffering = offerings.current ?? offerings.offering(identifier: RevenueCatConfig.offeringID) ?? offerings.all["default"] {
                 self.offeringIdentifier = defaultOffering.identifier
                 if let pkg = defaultOffering.package(identifier: RevenueCatConfig.packageID) {
                     self.annualPackage = pkg
                     self.packageIdentifier = pkg.identifier
                     self.productIdentifier = pkg.storeProduct.productIdentifier
                     print("📦 [RevenueCat] Loaded package: \(pkg.identifier), product: \(pkg.storeProduct.productIdentifier)")
+                } else {
+                    errorMessage = "Không tìm thấy package '\(RevenueCatConfig.packageID)'."
                 }
+            } else {
+                errorMessage = "Không tìm thấy offering '\(RevenueCatConfig.offeringID)'."
             }
             statusMessage = "Offerings loaded."
         } catch {
@@ -157,20 +160,10 @@ final class RevenueCatViewModel: ObservableObject {
                 print("📅 [RevenueCat DEBUG] Transaction Purchase Date: \(tx.purchaseDate)")
             }
 
-            // Lấy VerificationResult<Transaction> gốc từ StoreKit 2 (Section 3 & 4)
-            let (rawVerification, _) = await StoreKitTransactionService.shared.fetchLatestTransaction(for: RevenueCatConfig.expectedProductID)
-            if let vResult = rawVerification {
-                switch vResult {
-                case .verified(let tx):
-                    self.fetchToken = vResult.jwsRepresentation
-                    self.fetchTokenStatus = "STOREKIT2_JWS_TRANSACTION (VERIFIED)"
-                    self.transactionIdentifier = String(tx.id)
-                    self.storeTransactionIdentifier = String(tx.id)
-                case .unverified(_, let error):
-                    self.fetchToken = nil
-                    self.fetchTokenStatus = "UNVERIFIED: \(error.localizedDescription)"
-                }
-            }
+            // Test Store Mode: Không gọi Apple StoreKit 2, fetch_token = null
+            self.fetchToken = nil
+            self.fetchTokenType = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+            self.fetchTokenStatus = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
 
             // Serialize RAW PURCHASE RESULT
             buildRawPurchaseResultJSON(result: result)
@@ -355,26 +348,28 @@ final class RevenueCatViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Helper: Build Unified Debug JSON (Theo Requirement 12)
+    // MARK: - Helper: Build Unified Debug JSON (Section 10 Output Format)
     func buildUnifiedDebugJSON() {
         let debugDict: [String: Any] = [
             "app_user_id": self.appUserID,
             "product_id": self.productIdentifier.isEmpty ? RevenueCatConfig.expectedProductID : self.productIdentifier,
-            "package_id": self.packageIdentifier.isEmpty ? RevenueCatConfig.packageID : self.packageIdentifier,
-            "store": self.store,
+            "entitlement_id": RevenueCatConfig.entitlementID,
+            "master_fetch_token": self.storeTransactionIdentifier == "-" ? NSNull() : self.storeTransactionIdentifier,
+            "master_fetch_token_source": "REVENUECAT_TEST_STORE_TRANSACTION_ID",
+            "fetch_token": NSNull(),
+            "fetch_token_type": "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE",
             "transaction": [
-                "id": self.transactionIdentifier,
-                "store_transaction_id": self.storeTransactionIdentifier,
+                "store": self.store,
+                "is_sandbox": true,
+                "store_transaction_id": self.storeTransactionIdentifier == "-" ? NSNull() : self.storeTransactionIdentifier,
                 "purchase_date": self.purchaseDate,
-                "expiration_date": self.expirationDate
+                "expiration_date": self.expirationDate == "-" ? NSNull() : self.expirationDate
             ],
-            "entitlement": [
-                "identifier": RevenueCatConfig.entitlementID,
-                "is_active": self.entitlementIsActive
+            "revenuecat": [
+                "subscription_active": self.entitlementIsActive,
+                "entitlement_gold_active": self.entitlementIsActive
             ],
-            "fetch_token": self.fetchToken as Any? ?? NSNull(),
-            "fetch_token_type": self.fetchTokenType,
-            "fetch_token_status": self.fetchTokenStatus
+            "final_status": self.entitlementIsActive ? "REVENUECAT_TEST_GOLD_ACTIVE" : "PURCHASE_REQUIRED"
         ]
 
         if let data = try? JSONSerialization.data(withJSONObject: debugDict, options: [.prettyPrinted, .sortedKeys]),

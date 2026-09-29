@@ -101,13 +101,23 @@ struct MasterKeyDebugView: View {
             
             // Header: Title & Status Badge
             HStack {
-                Text("MASTER STOREKIT 2 KEY ĐANG KÍCH HOẠT")
+                Text(viewModel.environment == .testStore ? "REVENUECAT TEST STORE" : "MASTER STOREKIT 2 KEY ĐANG KÍCH HOẠT")
                     .font(.caption)
                     .fontWeight(.bold)
                     .foregroundColor(.secondary)
                 Spacer()
                 statusBadge(viewModel.finalStatus)
             }
+
+            // Environment Switcher (Section 14)
+            Picker("Môi trường", selection: Binding(
+                get: { viewModel.environment },
+                set: { newEnv in Task { await viewModel.switchEnvironment(newEnv) } }
+            )) {
+                Text("Test Store (Web/Sandbox)").tag(RevenueCatEnvironment.testStore)
+                Text("App Store (StoreKit 2)").tag(RevenueCatEnvironment.appStore)
+            }
+            .pickerStyle(SegmentedPickerStyle())
 
             // Cảnh báo Cross-UID Mismatch nếu có (Requirement 6)
             if !viewModel.transactionOwnerMatch || viewModel.finalStatus == .transactionOwnerMismatch {
@@ -221,6 +231,41 @@ struct MasterKeyDebugView: View {
                         Text(warn)
                             .font(.system(size: 10))
                             .foregroundColor(.orange)
+                    }
+                }
+
+                Divider()
+
+                // Store, Sandbox & Gold Info (Section 11)
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Store:")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(viewModel.environment == .testStore ? "test_store" : "app_store")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.purple)
+                    }
+                    Spacer()
+                    VStack(alignment: .center, spacing: 2) {
+                        Text("Sandbox:")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("true")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.green)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Gold:")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(viewModel.isGoldActive ? "ACTIVE" : "INACTIVE")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(viewModel.isGoldActive ? .green : .red)
                     }
                 }
 

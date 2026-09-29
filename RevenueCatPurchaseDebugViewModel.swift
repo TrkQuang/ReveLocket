@@ -5,9 +5,9 @@ import SwiftUI
 
 // MARK: - Configuration
 enum AppPurchaseConfig {
-    static let apiKey = "appl_JngFETzdodyLmCREOlwTUtXdQik"
-    static let appUserID = "1a73l0yKjleF7djpO7oYeP4u8ri1"
-    static let targetOfferingID = "locket_199"
+    static let apiKey = "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
+    static let appUserID = "kqdepzai"
+    static let targetOfferingID = "default"
     static let targetPackageID = "$rc_annual"
     static let expectedProductID = "locket_1600_1y"
     static let targetEntitlementID = "gold"
@@ -124,8 +124,8 @@ final class RevenueCatPurchaseDebugViewModel: ObservableObject {
         do {
             let offerings = try await Purchases.shared.offerings()
             
-            // Tìm chính xác offering: locket_199
-            guard let targetOffering = offerings.all[AppPurchaseConfig.targetOfferingID] else {
+            // Tìm offering: ưu tiên current, targetOfferingID, hoặc default
+            guard let targetOffering = offerings.current ?? offerings.all[AppPurchaseConfig.targetOfferingID] ?? offerings.all["default"] else {
                 let avail = offerings.all.keys.joined(separator: ", ")
                 let msg = "Không tìm thấy offering '\(AppPurchaseConfig.targetOfferingID)'. Offerings hiện có: [\(avail)]"
                 print("❌ [RevenueCat] \(msg)")
