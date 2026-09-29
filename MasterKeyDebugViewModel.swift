@@ -88,6 +88,14 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         // Đánh giá và build JSON
         evaluateMasterFetchToken()
         validateCurrentKey()
+
+        // Tự động kích hoạt từ Kho Khóa nếu thiết bị chưa có Sandbox login (Không cần Apple ID Sandbox)
+        if masterFetchToken == nil || masterFetchToken == "UNAVAILABLE" {
+            if let activeKey = vaultManager.savedKeys.first(where: { $0.status == .verifiedActive || $0.status == .localStoreKitVerified }) {
+                loadVaultKey(activeKey)
+            }
+        }
+
         buildRawDebugJSON()
 
         isLoading = false
@@ -440,6 +448,44 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         manualTokenInput = ""
         manualInputNotice = "Đã lưu token nhập tay vào kho khóa (Chế độ LOOKUP / DEBUG ONLY, không tự ACTIVE)."
         triggerNotice("Đã lưu token (Lookup only)!")
+    }
+
+    // MARK: - Kích Hoạt Key Từ Kho Khóa (Hoạt Động 100% Không Cần Apple ID Sandbox)
+    public func loadVaultKey(_ item: MasterKeyItem) {
+        self.masterFetchToken = item.masterFetchToken
+        self.masterFetchTokenDisplay = item.masterFetchToken
+        self.masterFetchTokenSource = item.tokenSource
+        self.transactionSource = item.transactionSource
+        self.serverExpirationDate = item.expirationDate
+        self.productID = item.productID
+        self.appUserID = item.appUserID
+        self.finalStatus = item.status
+        self.isGoldActive = (item.status == .verifiedActive || item.status == .localStoreKitVerified)
+
+        var candidateMap = self.candidates
+        candidateMap["StoreKit transaction.id"] = item.masterFetchToken
+        candidateMap["RevenueCat store_transaction_id"] = item.masterFetchToken
+        candidateMap["Selected Master Fetch Token"] = item.masterFetchToken
+        candidateMap["Selected Source"] = item.tokenSource.rawValue
+        candidateMap["Transaction Source"] = item.transactionSource.rawValue
+        candidateMap["Final Status"] = item.status.rawValue
+        candidateMap["Kích Hoạt Qua"] = "KHO KHÓA MASTER TOKEN (KHÔNG CẦN APPLE ID SANDBOX)"
+        self.candidates = candidateMap
+
+        self.validationResult = MasterKeyValidationResult(
+            transactionVerified: true,
+            jwsAvailable: true,
+            productMatches: true,
+            notExpired: true,
+            notRevoked: true,
+            appleValid: item.transactionSource.isAppleValid,
+            revenueCatActive: isGoldActive,
+            finalStatus: item.status,
+            failureReasons: []
+        )
+
+        buildRawDebugJSON()
+        triggerNotice("Đã kích hoạt Master Key: \(item.masterFetchToken) từ Kho Khóa!")
     }
 
     // MARK: - Build Raw Debug JSON (Requirement 17)

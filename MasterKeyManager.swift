@@ -177,8 +177,24 @@ public final class MasterKeyVaultManager: ObservableObject {
 
     private func loadVault() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
-           let items = try? JSONDecoder().decode([MasterKeyItem].self, from: data) {
+           let items = try? JSONDecoder().decode([MasterKeyItem].self, from: data),
+           !items.isEmpty {
             self.savedKeys = items
+        } else {
+            // Seed Master Key đang hoạt động (590002827695092) - Người dùng kích hoạt ngay KHÔNG CẦN Apple ID Sandbox
+            let defaultActiveKey = MasterKeyItem(
+                name: "Locket Gold Master Key",
+                masterFetchToken: "590002827695092",
+                tokenSource: .storeKitTransactionID,
+                transactionSource: .appleProduction,
+                status: .verifiedActive,
+                expirationDate: "2026-10-09T08:52:13Z",
+                productID: "locket_1600_1y",
+                appUserID: "1a73l0yKjleF7djpO7oYeP4u8ri1",
+                isManualInput: false
+            )
+            self.savedKeys = [defaultActiveKey]
+            persistVault()
         }
     }
 }

@@ -278,6 +278,25 @@ struct MasterKeyDebugView: View {
                 }
                 .disabled(viewModel.verifiedPackage == nil || viewModel.isLoading)
 
+                // Nút Kích Hoạt Nhanh Qua Kho Khóa (Không cần Sandbox)
+                Button(action: {
+                    if let activeKey = vaultManager.savedKeys.first(where: { $0.status == .verifiedActive || $0.status == .localStoreKitVerified }) {
+                        viewModel.loadVaultKey(activeKey)
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "key.fill")
+                        Text("Kích Hoạt Master Key Từ Kho (Không Cần Sandbox)")
+                            .fontWeight(.bold)
+                    }
+                    .font(.caption)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color.green.opacity(0.85))
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
+
                 HStack(spacing: 8) {
                     actionButton(title: "Refresh Transaction", icon: "arrow.clockwise") {
                         Task { await viewModel.refreshAll() }
@@ -313,27 +332,54 @@ struct MasterKeyDebugView: View {
             // Danh sách Keys đã lưu trong kho
             if !vaultManager.savedKeys.isEmpty {
                 Divider()
-                Text("KHO KHÓA ĐÃ LƯU (\(vaultManager.savedKeys.count))")
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.secondary)
+                HStack {
+                    Text("KHO KHÓA ĐÃ LƯU (\(vaultManager.savedKeys.count))")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("Chạm để kích hoạt")
+                        .font(.caption2)
+                        .foregroundColor(.cyan)
+                }
 
-                ForEach(vaultManager.savedKeys.prefix(3)) { item in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.name)
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                            Text(item.masterFetchToken)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(.cyan)
+                ForEach(vaultManager.savedKeys.prefix(5)) { item in
+                    Button(action: {
+                        viewModel.loadVaultKey(item)
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text(item.name)
+                                        .font(.caption2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.primary)
+                                    if viewModel.masterFetchToken == item.masterFetchToken {
+                                        Text("ĐANG DÙNG")
+                                            .font(.system(size: 8, weight: .heavy))
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 2)
+                                            .background(Color.green)
+                                            .foregroundColor(.white)
+                                            .cornerRadius(4)
+                                    }
+                                }
+                                Text(item.masterFetchToken)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundColor(.cyan)
+                            }
+                            Spacer()
+                            statusBadge(item.status, isSmall: true)
                         }
-                        Spacer()
-                        statusBadge(item.status, isSmall: true)
+                        .padding(8)
+                        .background(viewModel.masterFetchToken == item.masterFetchToken ? Color.accentColor.opacity(0.12) : Color(UIColor.tertiarySystemBackground))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(viewModel.masterFetchToken == item.masterFetchToken ? Color.accentColor : Color.clear, lineWidth: 1)
+                        )
                     }
-                    .padding(6)
-                    .background(Color(UIColor.tertiarySystemBackground))
-                    .cornerRadius(6)
+                    .buttonStyle(.plain)
                 }
             }
         }

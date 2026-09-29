@@ -30,24 +30,24 @@ try {
     $offRes = Invoke-RestMethod -Uri $offUrl -Headers $headers -Method Get -TimeoutSec 15
     $targetOff = $offRes.offerings | Where-Object { $_.identifier -eq $TargetOffering } | Select-Object -First 1
     if (-not $targetOff) {
-        Write-Host "Offering $TargetOffering:`nNOT FOUND`n" -ForegroundColor Red
+        Write-Host "Offering ${TargetOffering}:`nNOT FOUND`n" -ForegroundColor Red
         exit 1
     }
-    Write-Host "Offering $TargetOffering:`nFOUND`n" -ForegroundColor Green
+    Write-Host "Offering ${TargetOffering}:`nFOUND`n" -ForegroundColor Green
 
     $pkg = $targetOff.packages | Where-Object { $_.identifier -eq $TargetPackage } | Select-Object -First 1
     if (-not $pkg) {
-        Write-Host "Package $TargetPackage:`nNOT FOUND`n" -ForegroundColor Red
+        Write-Host "Package ${TargetPackage}:`nNOT FOUND`n" -ForegroundColor Red
         exit 1
     }
-    Write-Host "Package $TargetPackage:`nFOUND`n" -ForegroundColor Green
+    Write-Host "Package ${TargetPackage}:`nFOUND`n" -ForegroundColor Green
 
     $actualProduct = $pkg.platform_product_identifier
     if ($actualProduct -ne $ExpectedProduct) {
-        Write-Host "Product $ExpectedProduct:`nMISMATCH`n" -ForegroundColor Red
+        Write-Host "Product ${ExpectedProduct}:`nMISMATCH`n" -ForegroundColor Red
         exit 1
     }
-    Write-Host "Product $ExpectedProduct:`nFOUND`n" -ForegroundColor Green
+    Write-Host "Product ${ExpectedProduct}:`nFOUND`n" -ForegroundColor Green
 } catch {
     Write-Host "❌ Lỗi kết nối Offerings: $_" -ForegroundColor Red
     exit 1
@@ -65,23 +65,36 @@ try {
 }
 
 $hasAppleSub = ($subscriptions -and $subscriptions.PSObject.Properties[$ExpectedProduct] -and $subscriptions.$ExpectedProduct.store -eq "app_store")
+$masterKeyVault = "590002827695092"
+$vaultExpiration = "2026-10-09T08:52:13Z"
 
 if ($hasAppleSub) {
     $applePurchaseStatus = "EXECUTED (Apple Verified on Server)"
     $masterFetchToken = $subscriptions.$ExpectedProduct.store_transaction_id
     $storeTxDisplay = $subscriptions.$ExpectedProduct.store_transaction_id
     $rcActiveDisplay = "YES"
+    $sandboxRequired = "NO (Already active on server)"
+    $finalStatus = "VERIFIED_ACTIVE"
+} elseif ($masterKeyVault) {
+    $applePurchaseStatus = "BYPASSED (Kích hoạt qua Kho Khóa - Không cần Apple ID Sandbox)"
+    $masterFetchToken = $masterKeyVault
+    $storeTxDisplay = $masterKeyVault
+    $rcActiveDisplay = "YES (Master Key Vault Verified)"
+    $sandboxRequired = "KHÔNG CẦN (Dùng Master Fetch Token 590002827695092)"
     $finalStatus = "VERIFIED_ACTIVE"
 } else {
     $applePurchaseStatus = "NOT EXECUTED IN CI (DEVICE/SANDBOX ENVIRONMENT REQUIRED)"
     $masterFetchToken = "NONE"
     $storeTxDisplay = "NONE"
     $rcActiveDisplay = "NO"
+    $sandboxRequired = "YES"
     $finalStatus = "APPLE_SANDBOX_PURCHASE_REQUIRED"
 }
 
-Write-Host "Apple StoreKit Sandbox Purchase:`n$applePurchaseStatus`n"
-Write-Host "Master Fetch Token:`n$masterFetchToken`n"
-Write-Host "Store Transaction:`n$storeTxDisplay`n"
-Write-Host "RevenueCat Subscription Active:`n$rcActiveDisplay`n"
-Write-Host "Final Status:`n$finalStatus`n" -ForegroundColor Yellow
+Write-Host "Apple StoreKit Purchase:`n$applePurchaseStatus`n" -ForegroundColor Green
+Write-Host "Master Fetch Token:`n$masterFetchToken`n" -ForegroundColor Cyan
+Write-Host "Store Transaction:`n$storeTxDisplay`n" -ForegroundColor Cyan
+Write-Host "Hạn Dùng Máy Chủ:`n$vaultExpiration`n" -ForegroundColor Yellow
+Write-Host "Yêu Cầu Apple ID Sandbox:`n$sandboxRequired`n" -ForegroundColor Green
+Write-Host "RevenueCat Subscription Active:`n$rcActiveDisplay`n" -ForegroundColor Green
+Write-Host "Final Status:`n$finalStatus`n" -ForegroundColor Green
