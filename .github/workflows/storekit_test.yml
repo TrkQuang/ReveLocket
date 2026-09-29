@@ -1,4 +1,4 @@
-name: StoreKit 2 & RevenueCat Test on macOS
+name: StoreKit 2 & RevenueCat Test
 
 on:
   push:
@@ -6,30 +6,32 @@ on:
   workflow_dispatch:
 
 jobs:
-  storekit-test:
-    runs-on: macos-14 # Chạy trên máy Mac M2 thật của GitHub (Miễn phí)
+  revenuecat-test:
+    name: RevenueCat & StoreKit Verification (Ubuntu)
+    runs-on: ubuntu-latest # Hoạt động miễn phí 100% trên Private Repo mà không cần thẻ visa
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Verify macOS Environment & Xcode
-        run: |
-          sw_vers
-          xcodebuild -version
-          swift --version
-
       - name: Validate StoreKit Configuration Files
         run: |
           echo "=== KIỂM TRA FILE STOREKIT ==="
           ls -la *.storekit
+          cat LocketGold.storekit | head -n 30
 
-      - name: Set up Python & Run RevenueCat Test
-        run: |
-          python3 -m pip install requests
-          python3 run_simulation.py
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Display Test Results
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run RevenueCat Test Runner
+        run: python run_simulation.py
+
+      - name: Display Test Results (kq.txt)
         run: |
           echo "=== KẾT QUẢ TỪ FILE KQ.TXT ==="
           cat kq.txt
