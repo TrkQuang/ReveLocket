@@ -25,8 +25,8 @@ jobs:
         run: |
           echo "=== KIỂM TRA FILE CẤU HÌNH STOREKIT ==="
           ls -la *.storekit
-          plutil -lint LocketGold.storekit
-          plutil -lint Products.storekit
+          python3 -m json.tool LocketGold.storekit > /dev/null && echo "LocketGold.storekit: VALID JSON STOREKIT FORMAT"
+          python3 -m json.tool Products.storekit > /dev/null && echo "Products.storekit: VALID JSON STOREKIT FORMAT"
 
       - name: Validate Swift Syntax
         run: |
