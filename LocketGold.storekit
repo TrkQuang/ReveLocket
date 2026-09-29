@@ -1,0 +1,120 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "vi_VN",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "21419447",
+  "nonRenewingSubscriptions" : [ ],
+  "products" : [ ],
+  "settings" : {
+    "_applicationBundleID" : "com.locket.Locket",
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "vi_VN",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "VNM",
+    "_storeKitErrors" : [
+      {
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21419447",
+      "localizations" : [ ],
+      "name" : "Locket Gold",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [ ],
+          "codeOffers" : [ ],
+          "displayPrice" : "49000",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "31419447",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Gói đăng ký Locket Gold theo tháng",
+              "displayName" : "Locket Gold Monthly",
+              "locale" : "vi_VN"
+            }
+          ],
+          "productID" : "locket_199_1m",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Locket Gold Monthly",
+          "subscriptionGroupID" : "21419447",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [ ],
+          "codeOffers" : [ ],
+          "displayPrice" : "360000",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "31419448",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Gói đăng ký Locket Gold theo năm",
+              "displayName" : "Locket Gold Yearly",
+              "locale" : "vi_VN"
+            }
+          ],
+          "productID" : "locket_1600_1y",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Locket Gold Yearly",
+          "subscriptionGroupID" : "21419447",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 5,
+    "minor" : 0
+  }
+}

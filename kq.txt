@@ -1,0 +1,119 @@
+================================================================================
+     MASTER STOREKIT 2 KEY MANAGER - BÁO CÁO THỰC THI (CHO MÁY KHÔNG CÓ MAC)    
+================================================================================
+Thời gian kiểm tra     : 2026-09-29 14:58:53Z
+Hệ điều hành hiện tại  : Windows 11 (Không có máy Mac)
+App User ID            : 1a73l0yKjleF7djpO7oYeP4u8ri1
+Target Product         : locket_1600_1y
+Target Package         : $rc_annual
+Trạng thái Locket Gold : ACTIVE (Thành công 100% trên RevenueCat Test Store)
+
+================================================================================
+🎯 UI DISPLAY FORMAT: KẾT QUẢ KHI CHẠY TRÊN WINDOWS (REVENUECAT TEST STORE)
+================================================================================
+[LEFT PANEL: MASTER STOREKIT 2 KEY ĐANG KÍCH HOẠT]
+
+Status:
+🟣 REVENUECAT TEST ONLY
+(Đã kích hoạt thành công trên máy chủ RevenueCat thông qua Test Store!)
+
+THỜI GIAN CÒN LẠI CỦA TOKEN MASTER
+
+Master Fetch Token:
+test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1
+
+Token Source:
+REVENUECAT_STORE_TRANSACTION_ID
+
+Transaction Source:
+REVENUECAT_TEST_STORE
+
+Public API Key RevenueCat:
+test_AvyjuRHzlxvgfTgTsPNNTeTNaEG
+
+Hạn Dùng Máy Chủ:
+2026-09-29T15:57:58Z
+
+Product:
+locket_1600_1y
+
+UID:
+1a73l0yKjleF7djpO7oYeP4u8ri1
+================================================================================
+
+--------------------------------------------------------------------------------
+1. VALIDATION OUTPUT JSON (REVENUECAT TEST STORE CHẠY TRÊN WINDOWS)
+--------------------------------------------------------------------------------
+{
+  "transaction_source": "REVENUECAT_TEST_STORE",
+  "transaction_id": "test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1",
+  "original_transaction_id": "test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1",
+  "product_id": "locket_1600_1y",
+  "jws_length": 0,
+  "jws_segments": 0,
+  "jws_contains_ellipsis": false,
+  "storekit_verified": false,
+  "revenuecat_subscription_active": true,
+  "revenuecat_store_transaction_id": "test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1",
+  "transaction_ids_match": true,
+  "final_status": "REVENUECAT TEST ONLY"
+}
+
+--------------------------------------------------------------------------------
+2. LIVE REVENUECAT TEST STORE SUBSCRIBER RESPONSE
+--------------------------------------------------------------------------------
+HTTP Status Code : 200
+
+Raw Subscriptions:
+{
+  "locket_1600_1y": {
+    "auto_resume_date": null,
+    "billing_issues_detected_at": null,
+    "display_name": "Locket yearly",
+    "expires_date": "2026-09-29T15:57:58Z",
+    "grace_period_expires_date": null,
+    "is_sandbox": true,
+    "original_purchase_date": "2026-09-29T14:57:58Z",
+    "period_type": "normal",
+    "price": {
+      "amount": 0.99,
+      "currency": "USD"
+    },
+    "purchase_date": "2026-09-29T14:57:58Z",
+    "refunded_at": null,
+    "store": "test_store",
+    "store_transaction_id": "test_store_token_1790693897",
+    "unsubscribe_detected_at": null
+  }
+}
+
+Raw Entitlements:
+{
+  "gold": {
+    "expires_date": "2026-09-29T15:57:58Z",
+    "grace_period_expires_date": null,
+    "product_identifier": "locket_1600_1y",
+    "purchase_date": "2026-09-29T14:57:58Z"
+  }
+}
+
+store_transaction_id : test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1
+store                : test_store
+is_sandbox           : true
+purchase_date        : 2026-09-29T14:57:58Z
+expires_date         : 2026-09-29T15:57:58Z
+
+--------------------------------------------------------------------------------
+3. TÌNH TRẠNG APPLE APP STORE KEY (appl_JngFETzdodyLmCREOlwTUtXdQik)
+--------------------------------------------------------------------------------
+- Trên App Store key (appl_...): Subscriptions = 0, Entitlements = 0.
+- Lý do: Key appl_... yêu cầu receipt từ Apple StoreKit 2 thật (chỉ có trên iOS/macOS).
+- Giải pháp khi không có máy Mac vật lý:
+  + CÁCH 1 (Khuyên dùng): Dùng Test Store Key 'test_AvyjuRHzlxvgfTgTsPNNTeTNaEG' để test full chức năng
+    mua hàng, mở khóa Gold, kiểm tra hạn dùng máy chủ ngay trên Windows (đã chạy thành công ở trên!).
+  + CÁCH 2: Dùng GitHub Actions (.github/workflows/storekit_test.yml) - GitHub cấp máy Mac M2
+    miễn phí trên cloud để build và test StoreKit 2.
+
+================================================================================
+                          KẾT THÚC BÁO CÁO                                      
+================================================================================

@@ -1,0 +1,41 @@
+name: StoreKit 2 & RevenueCat Test on macOS
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  storekit-test:
+    runs-on: macos-14 # Chạy trên máy Mac M2 thật của GitHub (Miễn phí)
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Verify macOS Environment & Xcode
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Validate StoreKit Configuration Files
+        run: |
+          echo "=== KIỂM TRA FILE STOREKIT ==="
+          ls -la *.storekit
+
+      - name: Set up Python & Run RevenueCat Test
+        run: |
+          python3 -m pip install requests
+          python3 run_simulation.py
+
+      - name: Display Test Results
+        run: |
+          echo "=== KẾT QUẢ TỪ FILE KQ.TXT ==="
+          cat kq.txt
+
+      - name: Upload Test Results Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: revelocket-test-results
+          path: kq.txt
