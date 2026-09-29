@@ -1,5 +1,5 @@
 ================================================================================
-APPLE APP STORE & REVENUECAT LIVE VALIDATION (CI MODE)
+APPLE STOREKIT 2 & REVENUECAT LIVE VALIDATION (ZERO FAKE / ZERO SIMULATION)
 ================================================================================
 RevenueCat appl key:
 OK
@@ -13,54 +13,79 @@ FOUND
 Product locket_1600_1y:
 FOUND
 
+App User ID:
+1a73l0yKjleF7djpO7oYeP4u8ri1
+
 Master Fetch Token:
-NONE
+None
 
-Token Source:
-NONE
+Master Fetch Token Source:
+UNAVAILABLE
 
-Transaction Source:
-NONE
+Fetch Token:
+None
+
+Fetch Token Type:
+STOREKIT2_JWS_TRANSACTION
 
 Store Transaction:
-NONE
+None
 
 RevenueCat Subscription Active:
 NO
 
 Final Status:
-INACTIVE
+PURCHASE_REQUIRED
 
 ================================================================================
-DEBUG JSON OUTPUT (REQUIREMENT 10)
+OUTPUT CUỐI (SECTION 10 FORMAT)
 ================================================================================
 {
-  "current_app_user_id": "1a73l0yKjleF7djpO7oYeP4u8ri1",
-  "vault_item_owner": null,
-  "vault_transaction_id": null,
-  "revenuecat_live_subscription_active": false,
-  "revenuecat_live_store_transaction_id": null,
-  "transaction_owner_match": false,
-  "transaction_id_match": false,
-  "final_status": "INACTIVE"
+  "app_user_id": "1a73l0yKjleF7djpO7oYeP4u8ri1",
+  "product_id": "locket_1600_1y",
+  "master_fetch_token": null,
+  "master_fetch_token_source": "UNAVAILABLE",
+  "fetch_token": null,
+  "fetch_token_type": "STOREKIT2_JWS_TRANSACTION",
+  "storekit": {
+    "verified": false,
+    "transaction_id": "-",
+    "original_transaction_id": "-",
+    "environment": "-",
+    "purchase_date": "-",
+    "expiration_date": null
+  },
+  "revenuecat": {
+    "subscription_active": false,
+    "store": "app_store",
+    "store_transaction_id": null,
+    "entitlement_active": false
+  },
+  "validation": {
+    "jws_full": false,
+    "apple_transaction_verified": false,
+    "transaction_id_match": false,
+    "revenuecat_live_match": false
+  },
+  "final_status": "PURCHASE_REQUIRED"
 }
 
 ================================================================================
-CHI TIẾT ĐỐI SOÁT LIVE REVENUECAT (READ-ONLY)
+ĐỐI SOÁT CHI TIẾT TỪ LIVE REVENUECAT REST API (READ-ONLY)
 ================================================================================
-App User ID                 : 1a73l0yKjleF7djpO7oYeP4u8ri1
-Public Key                  : appl_JngFETzdodyLmCREOlwTUtXdQik
-Target Offering             : locket_199
-Target Package              : $rc_annual
-Expected Product            : locket_1600_1y
-RevenueCat HTTP Status Code : 200
-Active Subscriptions        : 0
-Active Entitlements         : 0
+HTTP Status Code            : 200
+Original App User ID        : 1a73l0yKjleF7djpO7oYeP4u8ri1
+Active Subscriptions Found  : ['locket_199_1m']
+Active Entitlements Found   : ['Gold']
+Target Product In Sub       : NO
 Store Transaction ID        : None
-Store Source                : None
+Store Name                  : None
 
-LƯU Ý QUAN TRỌNG:
-1. Dự án TUYỆT ĐỐI KHÔNG tái sử dụng Master Transaction của UID cũ cho UID mới.
-2. Mỗi UID có trạng thái độc lập dựa trên Live RevenueCat response.
-3. Nếu UID chưa có subscription trên RevenueCat: Final Status = INACTIVE.
+================================================================================
+SECTION 11: KIỂM TRA MÔI TRƯỜNG & DEPENDENCIES
+================================================================================
+- Môi trường iOS/macOS có GUI (Hiện tại đang chạy trên Windows terminal, không thể hiển thị StoreKit payment sheet).
+- Tài khoản Sandbox Tester Apple chưa thực hiện Purchase gói '$rc_annual' ('locket_1600_1y') trên thiết bị iOS.
+- In-App Purchase capability trên Xcode / Bundle ID com.locket.Locket.
+- Chưa có transaction StoreKit 2 nào cho product 'locket_1600_1y' trên App User ID '1a73l0yKjleF7djpO7oYeP4u8ri1'.
 ================================================================================

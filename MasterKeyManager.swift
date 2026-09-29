@@ -32,12 +32,13 @@ public enum PurchaseEnvironment: String, Codable, CaseIterable {
 // MARK: - 2. Final Verification Status
 public enum MasterKeyStatus: String, Codable, CaseIterable {
     case verifiedActive = "VERIFIED_ACTIVE"
+    case purchaseRequired = "PURCHASE_REQUIRED"
+    case revenueCatSyncFailed = "REVENUECAT_SYNC_FAILED"
     case inactive = "INACTIVE"
     case transactionOwnerMismatch = "TRANSACTION_OWNER_MISMATCH"
     case localStoreKitVerified = "LOCAL_STOREKIT_VERIFIED"
     case localTestOnly = "LOCAL STOREKIT TEST ONLY"
     case appleSandboxPurchaseRequired = "APPLE_SANDBOX_PURCHASE_REQUIRED"
-    case revenueCatSyncFailed = "REVENUECAT_SYNC_FAILED"
     case invalid = "INVALID"
     case invalidDebugData = "INVALID_DEBUG_DATA"
     case unverified = "UNVERIFIED"
@@ -45,12 +46,11 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
     public var badgeColor: Color {
         switch self {
         case .verifiedActive: return .green
+        case .purchaseRequired, .appleSandboxPurchaseRequired: return .orange
+        case .revenueCatSyncFailed: return .orange
         case .inactive: return .gray
         case .transactionOwnerMismatch: return .red
-        case .localStoreKitVerified: return .yellow
-        case .localTestOnly: return .yellow
-        case .appleSandboxPurchaseRequired: return .orange
-        case .revenueCatSyncFailed: return .orange
+        case .localStoreKitVerified, .localTestOnly: return .yellow
         case .invalid, .invalidDebugData: return .red
         case .unverified: return .gray
         }
@@ -59,12 +59,12 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
     public var badgeIcon: String {
         switch self {
         case .verifiedActive: return "checkmark.seal.fill"
+        case .purchaseRequired, .appleSandboxPurchaseRequired: return "cart.badge.questionmark"
+        case .revenueCatSyncFailed: return "arrow.triangle.2.circlepath.circle.fill"
         case .inactive: return "minus.circle.fill"
         case .transactionOwnerMismatch: return "person.crop.circle.badge.xmark"
         case .localStoreKitVerified: return "checkmark.shield.fill"
         case .localTestOnly: return "exclamationmark.triangle.fill"
-        case .appleSandboxPurchaseRequired: return "cart.badge.questionmark"
-        case .revenueCatSyncFailed: return "arrow.triangle.2.circlepath.circle.fill"
         case .invalid, .invalidDebugData: return "xmark.octagon.fill"
         case .unverified: return "questionmark.circle"
         }

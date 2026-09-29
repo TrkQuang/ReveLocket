@@ -15,10 +15,14 @@ public final class MasterKeyDebugViewModel: ObservableObject {
 
     // MARK: - 2. Active Master Key & Source
     @Published public var masterFetchToken: String? = nil
-    @Published public var masterFetchTokenDisplay: String = "UNAVAILABLE"
+    @Published public var masterFetchTokenDisplay: String = "null"
     @Published public var masterFetchTokenSource: MasterTokenSource = .unavailable
     @Published public var transactionSource: TransactionSource = .unknown
-    @Published public var finalStatus: MasterKeyStatus = .unverified
+    @Published public var finalStatus: MasterKeyStatus = .purchaseRequired
+
+    // MARK: - 2.1 Fetch Token (StoreKit 2 Signed JWS)
+    @Published public var fetchToken: String? = nil
+    @Published public var fetchTokenType: String = "STOREKIT2_JWS_TRANSACTION"
 
     // MARK: - 3. Server Expiration Date (ISO-8601)
     @Published public var serverExpirationDate: String = "-"
@@ -190,6 +194,13 @@ public final class MasterKeyDebugViewModel: ObservableObject {
             }
         }
 
+        // Cập nhật fetchToken (Section 4: STOREKIT2_JWS_TRANSACTION)
+        if storeKitDetails?.isVerified == true && !signedTransactionJWS.isEmpty {
+            self.fetchToken = signedTransactionJWS
+        } else {
+            self.fetchToken = nil
+        }
+
         // 3. AppTransaction
         let (_, appTx) = await storeKitService.fetchAppTransaction()
         self.appTransactionDetails = appTx
@@ -222,7 +233,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Evaluate Master Fetch Token & Candidates (Requirements 2, 7, 8, 11, 12)
+    // MARK: - Evaluate Master Fetch Token & Candidates (Requirements 1, 4, 5)
     public func evaluateMasterFetchToken() {
         print("🔍 [ViewModel] Đang đánh giá Master Fetch Token Candidates...")
 
@@ -247,28 +258,29 @@ public final class MasterKeyDebugViewModel: ObservableObject {
             self.transactionSource = .unknown
         }
 
-        // Logic chọn Master Fetch Token theo quy tắc Yêu cầu 12:
-        // a. field thật có tên từ API nếu có
-        // b. RevenueCat store_transaction_id nếu khớp transaction Apple verified
-        // c. StoreKit transaction.id nếu verified
-        // d. Nếu local .storekit transaction -> hiển thị nhưng status là LOCAL TEST ONLY
-        // e. Nếu không có transaction thật -> nil / UNAVAILABLE
+        // Section 5: Master Fetch Token dạng transaction ID chỉ được tạo sau khi transaction verified.
+        // Candidate: master_fetch_token = String(transaction.id)
+        // Chỉ khi: String(transaction.id) == RevenueCat store_transaction_id
+        // thì: master_fetch_token = RevenueCat store_transaction_id, source = REVENUECAT_STORE_TRANSACTION_ID
         var selectedToken: String? = nil
         var selectedSource: MasterTokenSource = .unavailable
 
-        if let rcStore = rcStoreTxID, !rcStore.isEmpty, CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: rcStore)) {
-            selectedToken = rcStore
-            selectedSource = .revenueCatStoreTransactionID
-        } else if let skID = skTxID, !skID.isEmpty, skID != "-", CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: skID)) {
-            selectedToken = skID
-            selectedSource = .storeKitTransactionID
-        } else if let origID = skOrigID, !origID.isEmpty, origID != "-", CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: origID)) {
-            selectedToken = origID
-            selectedSource = .storeKitOriginalTransactionID
+        let isVerified = storeKitDetails?.isVerified == true
+        if isVerified, let skID = skTxID, !skID.isEmpty, skID != "-" {
+            if let rcStore = rcStoreTxID, rcStore == skID {
+                selectedToken = rcStore
+                selectedSource = .revenueCatStoreTransactionID
+            } else {
+                selectedToken = nil
+                selectedSource = .unavailable
+            }
+        } else {
+            selectedToken = nil
+            selectedSource = .unavailable
         }
 
         self.masterFetchToken = selectedToken
-        self.masterFetchTokenDisplay = selectedToken ?? "UNAVAILABLE"
+        self.masterFetchTokenDisplay = selectedToken ?? "null"
         self.masterFetchTokenSource = selectedSource
 
         candidateMap["Selected Master Fetch Token"] = self.masterFetchTokenDisplay
@@ -277,16 +289,16 @@ public final class MasterKeyDebugViewModel: ObservableObject {
 
         self.candidates = candidateMap
 
-        // Xác định Hạn Dùng Máy Chủ (Requirement 15: StoreKit priority 1, RevenueCat priority 2)
+        // Xác định Hạn Dùng Máy Chủ (StoreKit priority 1, RevenueCat priority 2)
         if let skExp = storeKitExpirationDate, skExp != "nil", !skExp.isEmpty {
             self.serverExpirationDate = skExp
         } else if let rcExp = revenueCatExpirationDate, rcExp != "nil", !rcExp.isEmpty {
             self.serverExpirationDate = rcExp
         } else {
-            self.serverExpirationDate = "nil"
+            self.serverExpirationDate = "-"
         }
 
-        // So sánh 2 hạn dùng nếu cả 2 có (Requirement 15)
+        // So sánh 2 hạn dùng nếu cả 2 có
         if let skExp = storeKitExpirationDate, let rcExp = revenueCatExpirationDate, skExp != rcExp && skExp != "nil" && rcExp != "nil" {
             self.expirationMismatchWarning = "CẢNH BÁO: Hạn dùng StoreKit (\(skExp)) khác hạn dùng RevenueCat (\(rcExp))!"
             print("⚠️ [ViewModel] \(expirationMismatchWarning!)")
@@ -295,7 +307,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Validation Against Apple Requirements (Requirement 7)
+    // MARK: - Validation Against Apple Requirements (Section 1, 6, 7, 8, 10)
     public func validateCurrentKey() {
         var reasons: [String] = []
 
@@ -305,7 +317,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         let jwsExists = !signedTransactionJWS.isEmpty
         if !jwsExists { reasons.append("Thiếu StoreKit 2 Signed Transaction JWS do Apple ký.") }
 
-        // Kiểm tra xem JWS có chứa ký tự literal "..." hoặc "…" hoặc bị truncate không (Yêu cầu 2, 9)
+        // Kiểm tra xem JWS có chứa ký tự literal "..." hoặc "…" hoặc bị truncate không (Section 4, 7)
         let jwsSegments = signedTransactionJWS.components(separatedBy: ".")
         let jwsHasEllipsis = signedTransactionJWS.contains("...") || signedTransactionJWS.contains("…")
         let jwsValidSegments = jwsSegments.count == 3
@@ -317,23 +329,13 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         }
 
         let prodMatches = (storeKitDetails?.productID == productID)
-        if !prodMatches { reasons.append("Product ID không khớp: expected '\(productID)', received '\(storeKitDetails?.productID ?? "nil")'.") }
-
-        // Kiểm tra expirationDate > current date
-        var notExpired = false
-        if let expStr = serverExpirationDate.components(separatedBy: ".").first,
-           let expDate = isoFormatter.date(from: expStr.hasSuffix("Z") ? expStr : expStr + "Z") {
-            notExpired = expDate > Date()
-        } else if serverExpirationDate != "-" && serverExpirationDate != "nil" {
-            notExpired = true
-        }
-        if !notExpired { reasons.append("Gói cước đã hết hạn hoặc không xác định được expirationDate.") }
+        if !prodMatches && isVerified { reasons.append("Product ID không khớp: expected '\(productID)', received '\(storeKitDetails?.productID ?? "nil")'.") }
 
         let notRevoked = (storeKitDetails?.revocationDate == nil || storeKitDetails?.revocationDate == "nil")
         if !notRevoked { reasons.append("Giao dịch đã bị Apple thu hồi (Revocation Date: \(storeKitDetails?.revocationDate ?? "")).") }
 
         let isAppleValidSource = transactionSource.isAppleValid
-        if !isAppleValidSource {
+        if !isAppleValidSource && isVerified {
             if transactionSource == .xcodeLocalStoreKit {
                 reasons.append("Giao dịch chỉ được tạo từ file .storekit local trong Xcode. Không phải Apple App Store.")
             }
@@ -341,37 +343,25 @@ public final class MasterKeyDebugViewModel: ObservableObject {
 
         let rcActive = isGoldActive
         let txIdMatchesRc = (storeKitDetails?.transactionID != nil && storeKitDetails?.transactionID == rcSummary?.storeTransactionID)
-        if !rcActive {
+        if isVerified && !rcActive {
             reasons.append("RevenueCat subscription/entitlement chưa active trên server.")
         }
-        if !txIdMatchesRc {
+        if isVerified && !txIdMatchesRc {
             reasons.append("StoreKit transactionID không khớp với RevenueCat store_transaction_id.")
         }
 
-        // Quyết định Final Status (Requirement F, G, H, 10)
+        // Quyết định Final Status (Section 1, 6, 8, 10)
         let determinedStatus: MasterKeyStatus
         if jwsHasEllipsis || (!jwsValidSegments && jwsExists) {
             determinedStatus = .invalidDebugData
-        } else if transactionSource == .xcodeLocalStoreKit {
-            if isVerified && rcActive {
-                determinedStatus = .localStoreKitVerified
-            } else if isVerified && !rcActive {
-                determinedStatus = .revenueCatSyncFailed
-            } else {
-                determinedStatus = .localTestOnly
-            }
-        } else if transactionSource == .appleSandbox || transactionSource == .appleProduction {
-            if isVerified && jwsExists && prodMatches && notExpired && notRevoked && rcActive && txIdMatchesRc {
-                determinedStatus = .verifiedActive
-            } else if isVerified && !rcActive {
-                determinedStatus = .revenueCatSyncFailed
-            } else if !rcActive {
-                determinedStatus = .inactive
-            } else {
-                determinedStatus = .appleSandboxPurchaseRequired
-            }
+        } else if !isVerified {
+            determinedStatus = .purchaseRequired
+        } else if isVerified && (!rcActive || !txIdMatchesRc) {
+            determinedStatus = .revenueCatSyncFailed
+        } else if isVerified && rcActive && txIdMatchesRc && jwsExists && jwsValidSegments && !jwsHasEllipsis && notRevoked {
+            determinedStatus = .verifiedActive
         } else {
-            determinedStatus = rcActive ? .verifiedActive : .inactive
+            determinedStatus = .purchaseRequired
         }
 
         self.finalStatus = determinedStatus
@@ -540,66 +530,45 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         triggerNotice("Đã xác thực Master Key khớp 100% cho UID '\(self.appUserID)'!")
     }
 
-    // MARK: - Build Raw Debug JSON (Requirement 10 & 17)
+    // MARK: - Build Raw Debug JSON (Section 10 Output Format)
     public func buildRawDebugJSON() {
         let sk = storeKitDetails
         let rc = rcSummary
-        let v = validationResult
+        let jwsSegments = signedTransactionJWS.components(separatedBy: ".")
+        let jwsHasEllipsis = signedTransactionJWS.contains("...") || signedTransactionJWS.contains("…")
+        let jwsFull = (jwsSegments.count == 3 && !jwsHasEllipsis && !signedTransactionJWS.isEmpty)
+        let isTxVerified = sk?.isVerified ?? false
+        let txIdMatch = (sk?.transactionID != nil && sk?.transactionID != "-" && sk?.transactionID == rc?.storeTransactionID)
+        let rcLiveMatch = self.isGoldActive && (rc?.storeTransactionID != nil)
 
         let jsonDict: [String: Any] = [
-            "current_app_user_id": self.appUserID,
-            "vault_item_owner": self.vaultItemOwner as Any? ?? NSNull(),
-            "vault_transaction_id": self.vaultTransactionID as Any? ?? NSNull(),
-            "revenuecat_live_subscription_active": self.isGoldActive,
-            "revenuecat_live_store_transaction_id": rc?.storeTransactionID as Any? ?? NSNull(),
-            "transaction_owner_match": self.transactionOwnerMatch,
-            "transaction_id_match": self.transactionIdMatch,
-            "final_status": self.finalStatus.rawValue,
+            "app_user_id": self.appUserID,
+            "product_id": self.productID,
             "master_fetch_token": self.masterFetchToken as Any? ?? NSNull(),
             "master_fetch_token_source": self.masterFetchTokenSource.rawValue,
-            "transaction_source": self.transactionSource.rawValue,
-            "product_id": self.productID,
-            "revenuecat_public_key": self.revenueCatPublicKey,
+            "fetch_token": self.fetchToken as Any? ?? NSNull(),
+            "fetch_token_type": self.fetchTokenType,
             "storekit": [
-                "verified": sk?.isVerified ?? false,
+                "verified": isTxVerified,
                 "transaction_id": sk?.transactionID ?? "-",
                 "original_transaction_id": sk?.originalTransactionID ?? "-",
-                "product_id": sk?.productID ?? productID,
-                "purchase_date": sk?.purchaseDate ?? "-",
-                "original_purchase_date": sk?.originalPurchaseDate ?? "-",
-                "expiration_date": sk?.expirationDate as Any? ?? NSNull(),
-                "revocation_date": sk?.revocationDate as Any? ?? NSNull(),
                 "environment": sk?.environment ?? "-",
-                "ownership_type": sk?.ownershipType ?? "-"
-            ],
-            "signed_transaction_jws": self.signedTransactionJWS.isEmpty ? "None" : self.signedTransactionJWS,
-            "app_transaction": [
-                "bundle_id": self.appTransactionDetails?.bundleID ?? "-",
-                "environment": self.appTransactionDetails?.environment ?? "-",
-                "jws": self.appTransactionJWS.isEmpty ? "None" : self.appTransactionJWS
+                "purchase_date": sk?.purchaseDate ?? "-",
+                "expiration_date": sk?.expirationDate as Any? ?? NSNull()
             ],
             "revenuecat": [
-                "original_app_user_id": rc?.originalAppUserId ?? "-",
-                "active_subscriptions": rc?.activeSubscriptions ?? [],
-                "purchased_products": rc?.purchasedProducts ?? [],
-                "entitlements": rc?.entitlements.mapValues { [
-                    "identifier": $0.identifier,
-                    "isActive": $0.isActive,
-                    "productIdentifier": $0.productIdentifier,
-                    "purchaseDate": $0.purchaseDate,
-                    "expirationDate": $0.expirationDate as Any? ?? NSNull()
-                ] } ?? [:],
-                "store_transaction_id": rc?.storeTransactionID as Any? ?? NSNull()
+                "subscription_active": self.isGoldActive,
+                "store": rc?.entitlements[entitlementID]?.store ?? "app_store",
+                "store_transaction_id": rc?.storeTransactionID as Any? ?? NSNull(),
+                "entitlement_active": self.isGoldActive
             ],
             "validation": [
-                "transaction_verified": v?.transactionVerified ?? false,
-                "jws_available": v?.jwsAvailable ?? false,
-                "product_matches": v?.productMatches ?? false,
-                "not_expired": v?.notExpired ?? false,
-                "not_revoked": v?.notRevoked ?? false,
-                "apple_valid": v?.appleValid ?? false,
-                "revenuecat_active": v?.revenueCatActive ?? false
-            ]
+                "jws_full": jwsFull,
+                "apple_transaction_verified": isTxVerified,
+                "transaction_id_match": txIdMatch,
+                "revenuecat_live_match": rcLiveMatch
+            ],
+            "final_status": self.finalStatus.rawValue
         ]
 
         if let data = try? JSONSerialization.data(withJSONObject: jsonDict, options: [.prettyPrinted, .sortedKeys]),

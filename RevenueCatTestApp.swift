@@ -66,9 +66,10 @@ final class RevenueCatViewModel: ObservableObject {
 
     // 4. Token & Security Investigation (Kiểm tra fetch_token, receipt, JWS)
     @Published var fetchToken: String? = nil
-    @Published var fetchTokenStatus: String = "NOT EXPOSED BY REVENUECAT TEST STORE"
-    @Published var receiptStatus: String = "NOT APPLICABLE (No StoreKit receipt in Test Store)"
-    @Published var jwsStatus: String = "NOT APPLICABLE (Test Store bypasses StoreKit 2 JWS)"
+    @Published var fetchTokenType: String = "STOREKIT2_JWS_TRANSACTION"
+    @Published var fetchTokenStatus: String = "STOREKIT 2 JWS (NO TRANSACTION YET)"
+    @Published var receiptStatus: String = "STOREKIT 2 (NO LEGACY RECEIPT)"
+    @Published var jwsStatus: String = "STOREKIT 2 JWS SIGNED BY APPLE"
 
     // 5. Raw Data & JSON Dumps
     @Published var unifiedDebugJSON: String = ""
@@ -154,6 +155,21 @@ final class RevenueCatViewModel: ObservableObject {
                 self.purchaseDate = isoFormatter.string(from: tx.purchaseDate)
                 print("🧾 [RevenueCat DEBUG] Transaction Identifier: \(tx.transactionIdentifier)")
                 print("📅 [RevenueCat DEBUG] Transaction Purchase Date: \(tx.purchaseDate)")
+            }
+
+            // Lấy VerificationResult<Transaction> gốc từ StoreKit 2 (Section 3 & 4)
+            let (rawVerification, _) = await StoreKitTransactionService.shared.fetchLatestTransaction(for: RevenueCatConfig.expectedProductID)
+            if let vResult = rawVerification {
+                switch vResult {
+                case .verified(let tx):
+                    self.fetchToken = vResult.jwsRepresentation
+                    self.fetchTokenStatus = "STOREKIT2_JWS_TRANSACTION (VERIFIED)"
+                    self.transactionIdentifier = String(tx.id)
+                    self.storeTransactionIdentifier = String(tx.id)
+                case .unverified(_, let error):
+                    self.fetchToken = nil
+                    self.fetchTokenStatus = "UNVERIFIED: \(error.localizedDescription)"
+                }
             }
 
             // Serialize RAW PURCHASE RESULT
@@ -298,10 +314,10 @@ final class RevenueCatViewModel: ObservableObject {
         // Kiểm tra Verification ở cấp CustomerInfo
         self.verificationResult = String(describing: customerInfo.entitlementVerification)
 
-        // Kiểm tra fetch_token trong SDK
-        // Lưu ý: RevenueCat SDK không expose fetch_token trong public API
-        self.fetchToken = nil
-        self.fetchTokenStatus = "NOT EXPOSED BY REVENUECAT TEST STORE"
+        // Kiểm tra fetch_token trong StoreKit 2
+        if self.fetchToken == nil {
+            self.fetchTokenStatus = "STOREKIT 2 JWS (NO TRANSACTION YET)"
+        }
 
         // Serialize RAW CUSTOMER INFO
         if JSONSerialization.isValidJSONObject(customerInfo.rawData),
@@ -357,6 +373,7 @@ final class RevenueCatViewModel: ObservableObject {
                 "is_active": self.entitlementIsActive
             ],
             "fetch_token": self.fetchToken as Any? ?? NSNull(),
+            "fetch_token_type": self.fetchTokenType,
             "fetch_token_status": self.fetchTokenStatus
         ]
 
