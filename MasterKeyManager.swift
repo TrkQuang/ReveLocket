@@ -6,7 +6,6 @@ public enum TransactionSource: String, Codable, CaseIterable {
     case appleProduction = "APPLE_PRODUCTION"
     case appleSandbox = "APPLE_SANDBOX"
     case xcodeLocalStoreKit = "XCODE_LOCAL_STOREKIT"
-    case revenueCatTestStore = "REVENUECAT_TEST_STORE"
     case unknown = "UNKNOWN"
 
     public var displayName: String {
@@ -14,7 +13,6 @@ public enum TransactionSource: String, Codable, CaseIterable {
         case .appleProduction: return "Apple App Store (Production)"
         case .appleSandbox: return "Apple Sandbox / TestFlight"
         case .xcodeLocalStoreKit: return "Xcode Local StoreKit (.storekit)"
-        case .revenueCatTestStore: return "RevenueCat Test Store (Mock)"
         case .unknown: return "Chưa xác định"
         }
     }
@@ -24,12 +22,19 @@ public enum TransactionSource: String, Codable, CaseIterable {
     }
 }
 
+// MARK: - 1.1 Config Flag (Requirement 12)
+public enum PurchaseEnvironment: String, Codable, CaseIterable {
+    case appleSandbox = "APPLE_SANDBOX"
+    case appleProduction = "APPLE_PRODUCTION"
+    case xcodeLocal = "XCODE_LOCAL"
+}
+
 // MARK: - 2. Final Verification Status
 public enum MasterKeyStatus: String, Codable, CaseIterable {
     case verifiedActive = "VERIFIED_ACTIVE"
     case localStoreKitVerified = "LOCAL_STOREKIT_VERIFIED"
-    case localTestOnly = "LOCAL TEST ONLY"
-    case revenueCatTestOnly = "REVENUECAT TEST ONLY"
+    case localTestOnly = "LOCAL STOREKIT TEST ONLY"
+    case appleSandboxPurchaseRequired = "APPLE_SANDBOX_PURCHASE_REQUIRED"
     case revenueCatSyncFailed = "REVENUECAT_SYNC_FAILED"
     case invalid = "INVALID"
     case invalidDebugData = "INVALID_DEBUG_DATA"
@@ -40,7 +45,7 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
         case .verifiedActive: return .green
         case .localStoreKitVerified: return .yellow
         case .localTestOnly: return .yellow
-        case .revenueCatTestOnly: return .purple
+        case .appleSandboxPurchaseRequired: return .orange
         case .revenueCatSyncFailed: return .orange
         case .invalid, .invalidDebugData: return .red
         case .unverified: return .gray
@@ -52,7 +57,7 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
         case .verifiedActive: return "checkmark.seal.fill"
         case .localStoreKitVerified: return "checkmark.shield.fill"
         case .localTestOnly: return "exclamationmark.triangle.fill"
-        case .revenueCatTestOnly: return "cube.fill"
+        case .appleSandboxPurchaseRequired: return "cart.badge.questionmark"
         case .revenueCatSyncFailed: return "arrow.triangle.2.circlepath.circle.fill"
         case .invalid, .invalidDebugData: return "xmark.octagon.fill"
         case .unverified: return "questionmark.circle"

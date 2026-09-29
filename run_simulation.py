@@ -5,201 +5,198 @@ import sys
 from datetime import datetime, timezone
 
 # ==============================================================================
-# STOREKIT 2 + REVENUECAT LIVE VERIFIER & DIAGNOSTIC RUNNER (NO MAC REQUIRED)
+# REVENUECAT + APPLE STOREKIT CONFIG CHECK (STRICT APP STORE ONLY - ZERO TEST STORE)
 # ==============================================================================
-# Hỗ trợ 2 chế độ:
-# 1. REVENUECAT TEST STORE: Chạy trực tiếp trên Windows không cần Mac, cấp Entitlement ACTIVE thật trên server RevenueCat!
-# 2. APPLE APP STORE / STOREKIT: Kiểm tra trạng thái đồng bộ StoreKit trên App Store server.
+# Tuân thủ nghiêm ngặt:
+# - CẤM RevenueCat Test Store (Không dùng test_ key, không tạo test_store_token)
+# - DUY NHẤT App Store Public Key: appl_JngFETzdodyLmCREOlwTUtXdQik
+# - KHÔNG coi REST API 200 là purchase thành công
+# - Trong CI / Terminal: Nếu chưa có Apple StoreKit transaction thật -> APPLE_SANDBOX_PURCHASE_REQUIRED
 # ==============================================================================
 
+PUBLIC_KEY = "appl_JngFETzdodyLmCREOlwTUtXdQik"
 APP_USER_ID = "1a73l0yKjleF7djpO7oYeP4u8ri1"
+TARGET_OFFERING = "locket_199"
 TARGET_PACKAGE = "$rc_annual"
 EXPECTED_PRODUCT = "locket_1600_1y"
-BUNDLE_ID = "com.locket.Locket"
-STOREKIT_CONFIG_FILE = "LocketGold.storekit"
 OUTPUT_FILE = r"c:\Users\shuut\Documents\StoreKit_Demo\ReveLocket\kq.txt"
 
-# Keys
-KEY_TEST_STORE = "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
-KEY_APP_STORE = "appl_JngFETzdodyLmCREOlwTUtXdQik"
+# Nếu chạy trên Linux/macOS trong CI (file path tương đối)
+if not os.path.exists(os.path.dirname(OUTPUT_FILE)):
+    OUTPUT_FILE = "kq.txt"
 
-print("================================================================================")
-print("🚀 STOREKIT 2 + REVENUECAT RUNNER - GIẢI PHÁP CHẠY TRÊN WINDOWS KHÔNG CẦN MAC")
-print("================================================================================")
-print(f"App User ID    : {APP_USER_ID}")
-print(f"Target Package : {TARGET_PACKAGE}")
-print(f"Product ID     : {EXPECTED_PRODUCT}")
-print(f"StoreKit File  : {STOREKIT_CONFIG_FILE}")
-
-# ------------------------------------------------------------------------------
-# PHẦN 1: THỰC HIỆN PURCHASE & KIỂM TRA TRÊN REVENUECAT TEST STORE (HOẠT ĐỘNG 100% TRÊN WINDOWS)
-# ------------------------------------------------------------------------------
-print("\n[PHẦN 1] Thực thi trên REVENUECAT TEST STORE (Dành riêng cho máy không có Mac)...")
-test_headers = {
-    "Authorization": f"Bearer {KEY_TEST_STORE}",
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-    "X-Platform": "ios",
-    "X-Is-Sandbox": "true"
-}
-
-# 1.1 Lấy Offerings của Test Store
-r_test_off = requests.get(f"https://api.revenuecat.com/v1/subscribers/{APP_USER_ID}/offerings", headers=test_headers, timeout=15)
-test_offerings = r_test_off.json().get("offerings", [])
-default_off = next((o for o in test_offerings if o.get("identifier") == "default"), None)
-print(f"   ✅ Kết nối Test Store: Tìm thấy Offering 'default'")
-
-# 1.2 Thực hiện Purchase thật qua RevenueCat Test Store Backend
-tx_id_test_store = f"test_store_token_{APP_USER_ID}"
-purchase_body = {
-    "app_user_id": APP_USER_ID,
-    "fetch_token": tx_id_test_store,
-    "product_id": EXPECTED_PRODUCT,
-    "price": 16.00,
-    "currency": "USD"
-}
-
-r_purchase = requests.post("https://api.revenuecat.com/v1/receipts", headers=test_headers, json=purchase_body, timeout=15)
-print(f"   ✅ Thực hiện Purchase thành công! HTTP {r_purchase.status_code}")
-
-# 1.3 Lấy Subscriber Info sau Purchase
-r_sub_test = requests.get(f"https://api.revenuecat.com/v1/subscribers/{APP_USER_ID}", headers=test_headers, timeout=15)
-sub_test_data = r_sub_test.json().get("subscriber", {})
-
-test_subs = sub_test_data.get("subscriptions", {})
-test_ents = sub_test_data.get("entitlements", {})
-test_gold = test_ents.get("gold", {})
-is_test_gold_active = (test_gold != {})
-
-print(f"   👑 Trạng thái Entitlement 'gold': {'ACTIVE' if is_test_gold_active else 'INACTIVE'}")
-print(f"   🧾 Store Transaction ID          : {tx_id_test_store}")
-print(f"   🏪 Store                         : test_store")
-
-# ------------------------------------------------------------------------------
-# PHẦN 2: KIỂM TRA TRÊN APPLE APP STORE LIVE API (appl_...)
-# ------------------------------------------------------------------------------
-print("\n[PHẦN 2] Kiểm tra trên Apple App Store Live API (appl_JngFETzdodyLmCREOlwTUtXdQik)...")
-app_headers = {
-    "Authorization": f"Bearer {KEY_APP_STORE}",
+headers = {
+    "Authorization": f"Bearer {PUBLIC_KEY}",
     "Accept": "application/json",
     "X-Platform": "ios"
 }
 
-r_app_sub = requests.get(f"https://api.revenuecat.com/v1/subscribers/{APP_USER_ID}", headers=app_headers, timeout=15)
-app_sub_data = r_app_sub.json().get("subscriber", {})
-app_subs = app_sub_data.get("subscriptions", {})
-app_ents = app_sub_data.get("entitlements", {})
-app_store_tx_id = app_subs.get(EXPECTED_PRODUCT, {}).get("store_transaction_id")
+print("================================================================================")
+print("APPLE APP STORE CONFIG CHECK (ZERO TEST STORE / ZERO FAKE PURCHASE)")
+print("================================================================================")
 
-print(f"   App Store API HTTP Status: {r_app_sub.status_code}")
-print(f"   Active Subscriptions trên App Store: {len(app_subs)}")
-print(f"   Active Entitlements trên App Store : {len(app_ents)}")
+# 1. Kiểm tra RevenueCat Public Key (appl_...)
+if not PUBLIC_KEY.startswith("appl_"):
+    print("❌ LỖI: Chỉ chấp nhận RevenueCat App Store key (bắt đầu bằng appl_)!")
+    sys.exit(1)
 
-# ------------------------------------------------------------------------------
-# PHÂN LOẠI & GHI KẾT QUẢ VÀO kq.txt
-# ------------------------------------------------------------------------------
-# Khi không có Mac, RevenueCat Test Store là phương thức DUY NHẤT chạy được và active thật.
-# Transaction Source: REVENUECAT_TEST_STORE
-# Final Status: REVENUECAT TEST ONLY (hoặc LOCAL TEST ONLY)
-final_status_test_store = "REVENUECAT TEST ONLY"
+print("RevenueCat appl key:")
+print("OK\n")
 
-validation_test_store = {
-    "transaction_source": "REVENUECAT_TEST_STORE",
-    "transaction_id": tx_id_test_store,
-    "original_transaction_id": tx_id_test_store,
-    "product_id": EXPECTED_PRODUCT,
-    "jws_length": 0,
-    "jws_segments": 0,
-    "jws_contains_ellipsis": False,
-    "storekit_verified": False,
-    "revenuecat_subscription_active": is_test_gold_active,
-    "revenuecat_store_transaction_id": tx_id_test_store,
-    "transaction_ids_match": True,
-    "final_status": final_status_test_store
-}
+# 2. Kiểm tra Offerings & Packages trên RevenueCat (Read-Only)
+off_url = f"https://api.revenuecat.com/v1/subscribers/{APP_USER_ID}/offerings"
+try:
+    r_off = requests.get(off_url, headers=headers, timeout=15)
+    r_off.raise_for_status()
+    offerings_data = r_off.json().get("offerings", [])
+except Exception as e:
+    print(f"❌ Lỗi kết nối RevenueCat Offerings: {e}")
+    sys.exit(1)
 
-report_text = f"""================================================================================
-     MASTER STOREKIT 2 KEY MANAGER - BÁO CÁO THỰC THI (CHO MÁY KHÔNG CÓ MAC)    
+# Kiểm tra Offering locket_199
+target_off = next((o for o in offerings_data if o.get("identifier") == TARGET_OFFERING), None)
+if not target_off:
+    print(f"Offering {TARGET_OFFERING}:")
+    print("NOT FOUND")
+    sys.exit(1)
+
+print(f"Offering {TARGET_OFFERING}:")
+print("FOUND\n")
+
+# Kiểm tra Package $rc_annual
+target_pkg = next((p for p in target_off.get("packages", []) if p.get("identifier") == TARGET_PACKAGE), None)
+if not target_pkg:
+    print(f"Package {TARGET_PACKAGE}:")
+    print("NOT FOUND")
+    sys.exit(1)
+
+print(f"Package {TARGET_PACKAGE}:")
+print("FOUND\n")
+
+# Kiểm tra Product locket_1600_1y
+actual_product_id = target_pkg.get("platform_product_identifier")
+if actual_product_id != EXPECTED_PRODUCT:
+    print(f"Product {EXPECTED_PRODUCT}:")
+    print(f"MISMATCH (Received '{actual_product_id}')")
+    sys.exit(1)
+
+print(f"Product {EXPECTED_PRODUCT}:")
+print("FOUND\n")
+
+# 3. Kiểm tra Subscriber State từ RevenueCat Live Server (Read-Only)
+sub_url = f"https://api.revenuecat.com/v1/subscribers/{APP_USER_ID}"
+try:
+    r_sub = requests.get(sub_url, headers=headers, timeout=15)
+    r_sub.raise_for_status()
+    sub_data = r_sub.json().get("subscriber", {})
+except Exception as e:
+    print(f"❌ Lỗi kết nối RevenueCat Subscriber: {e}")
+    sys.exit(1)
+
+subscriptions = sub_data.get("subscriptions", {})
+entitlements = sub_data.get("entitlements", {})
+
+target_sub = subscriptions.get(EXPECTED_PRODUCT, {})
+rc_store = target_sub.get("store")
+rc_store_tx_id = target_sub.get("store_transaction_id")
+rc_is_sandbox = target_sub.get("is_sandbox")
+rc_purchase_date = target_sub.get("purchase_date")
+rc_expires_date = target_sub.get("expires_date")
+
+# Điều kiện khắt khe (Yêu cầu 6, 7, 8):
+# Chỉ được coi là active khi có transaction thật từ store "app_store"
+has_apple_subscription = (
+    EXPECTED_PRODUCT in subscriptions and 
+    rc_store == "app_store" and 
+    rc_store_tx_id is not None
+)
+
+# 4. Đánh giá trạng thái StoreKit Purchase
+# Vì trong môi trường CI/Terminal không có runtime StoreKit 2 device để thực thi Sandbox purchase:
+if has_apple_subscription:
+    apple_purchase_status = "EXECUTED (Apple Verified on Server)"
+    master_fetch_token = rc_store_tx_id
+    store_tx_display = rc_store_tx_id
+    rc_active_display = "YES"
+    transaction_source = "APPLE_SANDBOX" if rc_is_sandbox else "APPLE_PRODUCTION"
+    final_status = "VERIFIED_ACTIVE"
+else:
+    apple_purchase_status = "NOT EXECUTED IN CI (DEVICE/SANDBOX ENVIRONMENT REQUIRED)"
+    master_fetch_token = "NONE"
+    store_tx_display = "NONE"
+    rc_active_display = "NO"
+    transaction_source = "APPLE_SANDBOX"
+    final_status = "APPLE_SANDBOX_PURCHASE_REQUIRED"
+
+print("Apple StoreKit Sandbox Purchase:")
+print(f"{apple_purchase_status}\n")
+
+print("Master Fetch Token:")
+print(f"{master_fetch_token}\n")
+
+print("Store Transaction:")
+print(f"{store_tx_display}\n")
+
+print("RevenueCat Subscription Active:")
+print(f"{rc_active_display}\n")
+
+print("Final Status:")
+print(f"{final_status}\n")
+
+# 5. Ghi báo cáo chuẩn vào kq.txt
+ci_report = f"""================================================================================
+APPLE APP STORE CONFIG CHECK (CI MODE)
 ================================================================================
-Thời gian kiểm tra     : {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")}
-Hệ điều hành hiện tại  : Windows 11 (Không có máy Mac)
-App User ID            : {APP_USER_ID}
-Target Product         : {EXPECTED_PRODUCT}
-Target Package         : {TARGET_PACKAGE}
-Trạng thái Locket Gold : ACTIVE (Thành công 100% trên RevenueCat Test Store)
+RevenueCat appl key:
+OK
 
-================================================================================
-🎯 UI DISPLAY FORMAT: KẾT QUẢ KHI CHẠY TRÊN WINDOWS (REVENUECAT TEST STORE)
-================================================================================
-[LEFT PANEL: MASTER STOREKIT 2 KEY ĐANG KÍCH HOẠT]
+Offering {TARGET_OFFERING}:
+FOUND
 
-Status:
-🟣 REVENUECAT TEST ONLY
-(Đã kích hoạt thành công trên máy chủ RevenueCat thông qua Test Store!)
+Package {TARGET_PACKAGE}:
+FOUND
 
-THỜI GIAN CÒN LẠI CỦA TOKEN MASTER
+Product {EXPECTED_PRODUCT}:
+FOUND
+
+Apple StoreKit Sandbox Purchase:
+{apple_purchase_status}
 
 Master Fetch Token:
-{tx_id_test_store}
+{master_fetch_token}
 
-Token Source:
-REVENUECAT_STORE_TRANSACTION_ID
+Store Transaction:
+{store_tx_display}
 
-Transaction Source:
-REVENUECAT_TEST_STORE
+RevenueCat Subscription Active:
+{rc_active_display}
 
-Public API Key RevenueCat:
-{KEY_TEST_STORE}
-
-Hạn Dùng Máy Chủ:
-{test_gold.get("expires_date", "nil")}
-
-Product:
-{EXPECTED_PRODUCT}
-
-UID:
-{APP_USER_ID}
-================================================================================
-
---------------------------------------------------------------------------------
-1. VALIDATION OUTPUT JSON (REVENUECAT TEST STORE CHẠY TRÊN WINDOWS)
---------------------------------------------------------------------------------
-{json.dumps(validation_test_store, indent=2, ensure_ascii=False)}
-
---------------------------------------------------------------------------------
-2. LIVE REVENUECAT TEST STORE SUBSCRIBER RESPONSE
---------------------------------------------------------------------------------
-HTTP Status Code : {r_sub_test.status_code}
-
-Raw Subscriptions:
-{json.dumps(test_subs, indent=2, ensure_ascii=False)}
-
-Raw Entitlements:
-{json.dumps(test_ents, indent=2, ensure_ascii=False)}
-
-store_transaction_id : {tx_id_test_store}
-store                : test_store
-is_sandbox           : true
-purchase_date        : {test_gold.get("purchase_date")}
-expires_date         : {test_gold.get("expires_date")}
-
---------------------------------------------------------------------------------
-3. TÌNH TRẠNG APPLE APP STORE KEY (appl_JngFETzdodyLmCREOlwTUtXdQik)
---------------------------------------------------------------------------------
-- Trên App Store key (appl_...): Subscriptions = {len(app_subs)}, Entitlements = {len(app_ents)}.
-- Lý do: Key appl_... yêu cầu receipt từ Apple StoreKit 2 thật (chỉ có trên iOS/macOS).
-- Giải pháp khi không có máy Mac vật lý:
-  + CÁCH 1 (Khuyên dùng): Dùng Test Store Key '{KEY_TEST_STORE}' để test full chức năng
-    mua hàng, mở khóa Gold, kiểm tra hạn dùng máy chủ ngay trên Windows (đã chạy thành công ở trên!).
-  + CÁCH 2: Dùng GitHub Actions (.github/workflows/storekit_test.yml) - GitHub cấp máy Mac M2
-    miễn phí trên cloud để build và test StoreKit 2.
+Final Status:
+{final_status}
 
 ================================================================================
-                          KẾT THÚC BÁO CÁO                                      
+CHI TIẾT ĐỐI SOÁT LIVE REVENUECAT (READ-ONLY)
+================================================================================
+App User ID                 : {APP_USER_ID}
+Public Key                  : {PUBLIC_KEY}
+Target Offering             : {TARGET_OFFERING}
+Target Package              : {TARGET_PACKAGE}
+Expected Product            : {EXPECTED_PRODUCT}
+RevenueCat HTTP Status Code : {r_sub.status_code}
+Active Subscriptions        : {len(subscriptions)}
+Active Entitlements         : {len(entitlements)}
+Store Transaction ID        : {rc_store_tx_id if rc_store_tx_id else "None"}
+Store Source                : {rc_store if rc_store else "None"}
+
+LƯU Ý QUAN TRỌNG:
+1. Dự án ĐÃ XÓA HOÀN TOÀN RevenueCat Test Store (Không dùng test_ key, không tạo test_store_token).
+2. Để chuyển trạng thái thành VERIFIED_ACTIVE:
+   Cần chạy trực tiếp ứng dụng iOS trên Xcode/Simulator/Thiết bị thật đã đăng nhập tài khoản
+   Apple Sandbox Tester, thực hiện purchase gói {EXPECTED_PRODUCT} qua StoreKit 2.
 ================================================================================
 """
 
 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-    f.write(report_text)
+    f.write(ci_report)
 
-print(f"\n✅ ĐÃ GHI KẾT QUẢ ĐẦY ĐỦ VÀO: {OUTPUT_FILE}")
+print(f"✅ Đã cập nhật file kết quả: {OUTPUT_FILE}")

@@ -1,4 +1,4 @@
-name: StoreKit 2 & RevenueCat Test
+name: Apple StoreKit 2 & RevenueCat CI
 
 on:
   push:
@@ -6,21 +6,34 @@ on:
   workflow_dispatch:
 
 jobs:
-  revenuecat-test:
-    name: RevenueCat & StoreKit Verification (Ubuntu)
-    runs-on: ubuntu-latest # Hoạt động miễn phí 100% trên Private Repo mà không cần thẻ visa
+  storekit-appstore-ci:
+    name: Apple StoreKit & RevenueCat CI (macOS)
+    runs-on: macos-latest # Chạy trực tiếp trên macOS theo yêu cầu
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Verify macOS & Xcode Environment
+        run: |
+          echo "=== THÔNG TIN MÔI TRƯỜNG MACOS ==="
+          sw_vers
+          xcodebuild -version
+          swift --version
+
       - name: Validate StoreKit Configuration Files
         run: |
-          echo "=== KIỂM TRA FILE STOREKIT ==="
+          echo "=== KIỂM TRA FILE CẤU HÌNH STOREKIT ==="
           ls -la *.storekit
-          cat LocketGold.storekit | head -n 30
+          plutil -lint LocketGold.storekit
+          plutil -lint Products.storekit
 
-      - name: Set up Python
+      - name: Validate Swift Syntax
+        run: |
+          echo "=== KIỂM TRA SYNTAX SWIFT ==="
+          swiftc -parse MasterKeyManager.swift
+
+      - name: Set up Python & Dependencies
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -28,16 +41,18 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
-      - name: Run RevenueCat Test Runner
+      - name: Run Apple App Store Config & Verification (Read-Only)
         run: python run_simulation.py
 
-      - name: Display Test Results (kq.txt)
+      - name: Display CI Verification Results
         run: |
-          echo "=== KẾT QUẢ TỪ FILE KQ.TXT ==="
+          echo "================================================================================"
+          echo "KẾT QUẢ TỪ FILE KQ.TXT (CI MODE)"
+          echo "================================================================================"
           cat kq.txt
 
-      - name: Upload Test Results Artifact
+      - name: Upload CI Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: revelocket-test-results
+          name: revelocket-app-store-ci
           path: kq.txt

@@ -237,8 +237,6 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         // Xác định Transaction Source
         if let detectedSource = storeKitDetails?.transactionSource {
             self.transactionSource = detectedSource
-        } else if let rcStore = rcSummary?.storeTransactionID, rcStore.contains("test_store") {
-            self.transactionSource = .revenueCatTestStore
         } else {
             self.transactionSource = .unknown
         }
@@ -332,8 +330,6 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         if !isAppleValidSource {
             if transactionSource == .xcodeLocalStoreKit {
                 reasons.append("Giao dịch chỉ được tạo từ file .storekit local trong Xcode. Không phải Apple App Store.")
-            } else if transactionSource == .revenueCatTestStore {
-                reasons.append("Giao dịch do RevenueCat Test Store tạo, không phải StoreKit transaction thật.")
             }
         }
 
@@ -346,7 +342,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
             reasons.append("StoreKit transactionID không khớp với RevenueCat store_transaction_id.")
         }
 
-        // Quyết định Final Status (Requirement F, G, H)
+        // Quyết định Final Status (Requirement F, G, H, 10)
         let determinedStatus: MasterKeyStatus
         if jwsHasEllipsis || (!jwsValidSegments && jwsExists) {
             determinedStatus = .invalidDebugData
@@ -364,12 +360,10 @@ public final class MasterKeyDebugViewModel: ObservableObject {
             } else if isVerified && !rcActive {
                 determinedStatus = .revenueCatSyncFailed
             } else {
-                determinedStatus = .invalid
+                determinedStatus = .appleSandboxPurchaseRequired
             }
-        } else if transactionSource == .revenueCatTestStore {
-            determinedStatus = .revenueCatTestOnly
         } else {
-            determinedStatus = .invalid
+            determinedStatus = .appleSandboxPurchaseRequired
         }
 
         self.finalStatus = determinedStatus

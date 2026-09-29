@@ -170,11 +170,6 @@ public final class StoreKitTransactionService {
             }
         }
 
-        // Fallback kiểm tra nếu transaction ID thuộc mock test store
-        if String(transaction.id).contains("test_store") {
-            return .revenueCatTestStore
-        }
-
         return .appleSandbox
     }
 

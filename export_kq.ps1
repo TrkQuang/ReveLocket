@@ -4,19 +4,19 @@ param(
     [string]$TargetOffering = "locket_199",
     [string]$TargetPackage = '$rc_annual',
     [string]$ExpectedProduct = "locket_1600_1y",
-    [string]$StoreKitConfigFile = "LocketGold.storekit",
     [string]$OutputFile = "c:\Users\shuut\Documents\StoreKit_Demo\ReveLocket\kq.txt"
 )
 
 Write-Host "================================================================================" -ForegroundColor Cyan
-Write-Host "🚀 STOREKIT 2 + REVENUECAT LIVE TEST RUNNER (ZERO MOCK / ZERO FAKE CRYPTO)" -ForegroundColor Cyan
+Write-Host "APPLE APP STORE CONFIG CHECK (ZERO TEST STORE / ZERO FAKE PURCHASE)" -ForegroundColor Cyan
 Write-Host "================================================================================" -ForegroundColor Cyan
-Write-Host "API Key        : $ApiKey"
-Write-Host "App User ID    : $AppUserId"
-Write-Host "Target Offering: $TargetOffering"
-Write-Host "Target Package : $TargetPackage"
-Write-Host "Product ID     : $ExpectedProduct"
-Write-Host "StoreKit File  : $StoreKitConfigFile"
+
+if (-not $ApiKey.StartsWith("appl_")) {
+    Write-Host "❌ LỖI: Chỉ chấp nhận RevenueCat App Store key (bắt đầu bằng appl_)!" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "RevenueCat appl key:`nOK`n" -ForegroundColor Green
 
 $headers = @{
     "Authorization" = "Bearer $ApiKey"
@@ -24,109 +24,64 @@ $headers = @{
     "X-Platform"    = "ios"
 }
 
-# 1. Fetch Subscriber
-Write-Host "`n1️⃣  Kết nối RevenueCat API: Lấy Subscriber Info..." -ForegroundColor Yellow
-$subUrl = "https://api.revenuecat.com/v1/subscribers/$AppUserId"
-try {
-    $subResponse = Invoke-RestMethod -Uri $subUrl -Headers $headers -Method Get -TimeoutSec 15
-    $rcHttpStatus = 200
-    $sub = $subResponse.subscriber
-    Write-Host "   ✅ HTTP $rcHttpStatus | Original App User ID: $($sub.original_app_user_id)" -ForegroundColor Green
-} catch {
-    $rcHttpStatus = $_.Exception.Response.StatusCode.value__
-    Write-Host "   ⚠️ Lỗi lấy subscriber: $_ (HTTP $rcHttpStatus)" -ForegroundColor Red
-    $sub = @{ subscriptions = @{}; entitlements = @{} }
-}
-
-# 2. Fetch Offerings
-Write-Host "`n2️⃣  Kết nối RevenueCat API: Lấy Offerings & tìm '$TargetOffering'..." -ForegroundColor Yellow
+# 1. Fetch Offerings
 $offUrl = "https://api.revenuecat.com/v1/subscribers/$AppUserId/offerings"
 try {
-    $offResponse = Invoke-RestMethod -Uri $offUrl -Headers $headers -Method Get -TimeoutSec 15
-    $targetOff = $offResponse.offerings | Where-Object { $_.identifier -eq $TargetOffering } | Select-Object -First 1
+    $offRes = Invoke-RestMethod -Uri $offUrl -Headers $headers -Method Get -TimeoutSec 15
+    $targetOff = $offRes.offerings | Where-Object { $_.identifier -eq $TargetOffering } | Select-Object -First 1
     if (-not $targetOff) {
-        Write-Host "   ❌ Không tìm thấy offering $TargetOffering" -ForegroundColor Red
+        Write-Host "Offering $TargetOffering:`nNOT FOUND`n" -ForegroundColor Red
         exit 1
     }
+    Write-Host "Offering $TargetOffering:`nFOUND`n" -ForegroundColor Green
+
     $pkg = $targetOff.packages | Where-Object { $_.identifier -eq $TargetPackage } | Select-Object -First 1
     if (-not $pkg) {
-        Write-Host "   ❌ Không tìm thấy package $TargetPackage" -ForegroundColor Red
+        Write-Host "Package $TargetPackage:`nNOT FOUND`n" -ForegroundColor Red
         exit 1
     }
+    Write-Host "Package $TargetPackage:`nFOUND`n" -ForegroundColor Green
+
     $actualProduct = $pkg.platform_product_identifier
-    Write-Host "   ✅ Đã tìm thấy: Offering '$TargetOffering' -> Package '$TargetPackage' -> Product '$actualProduct'" -ForegroundColor Green
     if ($actualProduct -ne $ExpectedProduct) {
-        Write-Host "   ❌ Lỗi Mismatch Product ID!" -ForegroundColor Red
+        Write-Host "Product $ExpectedProduct:`nMISMATCH`n" -ForegroundColor Red
         exit 1
     }
+    Write-Host "Product $ExpectedProduct:`nFOUND`n" -ForegroundColor Green
 } catch {
-    Write-Host "   ⚠️ Lỗi lấy offerings: $_" -ForegroundColor Red
+    Write-Host "❌ Lỗi kết nối Offerings: $_" -ForegroundColor Red
+    exit 1
 }
 
-# 3. Live Subscriptions Check
-$subscriptions = $sub.subscriptions
-$entitlements = $sub.entitlements
-
-$targetSub = $null
-if ($subscriptions -and $subscriptions.PSObject.Properties[$ExpectedProduct]) {
-    $targetSub = $subscriptions.$ExpectedProduct
+# 2. Fetch Subscriber
+$subUrl = "https://api.revenuecat.com/v1/subscribers/$AppUserId"
+try {
+    $subRes = Invoke-RestMethod -Uri $subUrl -Headers $headers -Method Get -TimeoutSec 15
+    $sub = $subRes.subscriber
+    $subscriptions = $sub.subscriptions
+} catch {
+    Write-Host "❌ Lỗi kết nối Subscriber: $_" -ForegroundColor Red
+    exit 1
 }
 
-$rcStoreTxId = if ($targetSub) { $targetSub.store_transaction_id } else { $null }
-$rcStore = if ($targetSub) { $targetSub.store } else { $null }
-$rcIsSandbox = if ($targetSub) { $targetSub.is_sandbox } else { $null }
-$rcPurchaseDate = if ($targetSub) { $targetSub.purchase_date } else { $null }
-$rcExpiresDate = if ($targetSub) { $targetSub.expires_date } else { $null }
+$hasAppleSub = ($subscriptions -and $subscriptions.PSObject.Properties[$ExpectedProduct] -and $subscriptions.$ExpectedProduct.store -eq "app_store")
 
-$rcSubscriptionActive = ($targetSub -ne $null)
-$transactionSource = if (Test-Path "c:\Users\shuut\Documents\StoreKit_Demo\ReveLocket\$StoreKitConfigFile") { "XCODE_LOCAL_STOREKIT" } else { "UNKNOWN" }
-
-$realStoreKitTxId = $rcStoreTxId
-$storeKitVerified = ($realStoreKitTxId -ne $null)
-$txIdsMatch = ($realStoreKitTxId -ne $null -and $realStoreKitTxId -eq $rcStoreTxId)
-
-# 4. Master Fetch Token determination
-if ($rcStoreTxId -and $txIdsMatch) {
-    $masterFetchToken = $rcStoreTxId
-    $masterFetchTokenSource = "REVENUECAT_STORE_TRANSACTION_ID"
+if ($hasAppleSub) {
+    $applePurchaseStatus = "EXECUTED (Apple Verified on Server)"
+    $masterFetchToken = $subscriptions.$ExpectedProduct.store_transaction_id
+    $storeTxDisplay = $subscriptions.$ExpectedProduct.store_transaction_id
+    $rcActiveDisplay = "YES"
+    $finalStatus = "VERIFIED_ACTIVE"
 } else {
-    $masterFetchToken = $null
-    $masterFetchTokenSource = "UNAVAILABLE"
+    $applePurchaseStatus = "NOT EXECUTED IN CI (DEVICE/SANDBOX ENVIRONMENT REQUIRED)"
+    $masterFetchToken = "NONE"
+    $storeTxDisplay = "NONE"
+    $rcActiveDisplay = "NO"
+    $finalStatus = "APPLE_SANDBOX_PURCHASE_REQUIRED"
 }
 
-# 5. Final Status
-if ($transactionSource -eq "XCODE_LOCAL_STOREKIT") {
-    if ($storeKitVerified -and $rcSubscriptionActive) {
-        $finalStatus = "LOCAL_STOREKIT_VERIFIED"
-        $statusReason = "Giao dịch StoreKit Local đã verify và RevenueCat đã nhận receipt."
-    } elseif (-not $rcSubscriptionActive) {
-        $finalStatus = "REVENUECAT_SYNC_FAILED"
-        $statusReason = "Giao dịch StoreKit Local chưa được sync lên RevenueCat (Cần upload StoreKit Public Certificate)."
-    } else {
-        $finalStatus = "LOCAL_TEST_ONLY"
-        $statusReason = "Chỉ dùng cho local test trong Xcode."
-    }
-} else {
-    $finalStatus = "REVENUECAT_SYNC_FAILED"
-    $statusReason = "Chưa có transaction nào từ StoreKit được đồng bộ lên máy chủ RevenueCat."
-}
-
-# 6. Validation JSON (Requirement H)
-$validationH = [ordered]@{
-    "transaction_source"             = $transactionSource
-    "transaction_id"                 = $realStoreKitTxId
-    "original_transaction_id"        = $realStoreKitTxId
-    "product_id"                     = $ExpectedProduct
-    "jws_length"                     = 0
-    "jws_segments"                   = 0
-    "jws_contains_ellipsis"          = $false
-    "storekit_verified"              = $storeKitVerified
-    "revenuecat_subscription_active" = $rcSubscriptionActive
-    "revenuecat_store_transaction_id"= $rcStoreTxId
-    "transaction_ids_match"          = $txIdsMatch
-    "final_status"                   = $finalStatus
-}
-
-$validationHJson = $validationH | ConvertTo-Json -Depth 5
-
-Write-Host "`nFinal Status: $finalStatus ($statusReason)" -ForegroundColor Magenta
+Write-Host "Apple StoreKit Sandbox Purchase:`n$applePurchaseStatus`n"
+Write-Host "Master Fetch Token:`n$masterFetchToken`n"
+Write-Host "Store Transaction:`n$storeTxDisplay`n"
+Write-Host "RevenueCat Subscription Active:`n$rcActiveDisplay`n"
+Write-Host "Final Status:`n$finalStatus`n" -ForegroundColor Yellow

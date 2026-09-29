@@ -1,119 +1,50 @@
 ================================================================================
-     MASTER STOREKIT 2 KEY MANAGER - BÁO CÁO THỰC THI (CHO MÁY KHÔNG CÓ MAC)    
+APPLE APP STORE CONFIG CHECK (CI MODE)
 ================================================================================
-Thời gian kiểm tra     : 2026-09-29 14:58:53Z
-Hệ điều hành hiện tại  : Windows 11 (Không có máy Mac)
-App User ID            : 1a73l0yKjleF7djpO7oYeP4u8ri1
-Target Product         : locket_1600_1y
-Target Package         : $rc_annual
-Trạng thái Locket Gold : ACTIVE (Thành công 100% trên RevenueCat Test Store)
+RevenueCat appl key:
+OK
 
-================================================================================
-🎯 UI DISPLAY FORMAT: KẾT QUẢ KHI CHẠY TRÊN WINDOWS (REVENUECAT TEST STORE)
-================================================================================
-[LEFT PANEL: MASTER STOREKIT 2 KEY ĐANG KÍCH HOẠT]
+Offering locket_199:
+FOUND
 
-Status:
-🟣 REVENUECAT TEST ONLY
-(Đã kích hoạt thành công trên máy chủ RevenueCat thông qua Test Store!)
+Package $rc_annual:
+FOUND
 
-THỜI GIAN CÒN LẠI CỦA TOKEN MASTER
+Product locket_1600_1y:
+FOUND
+
+Apple StoreKit Sandbox Purchase:
+NOT EXECUTED IN CI (DEVICE/SANDBOX ENVIRONMENT REQUIRED)
 
 Master Fetch Token:
-test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1
+NONE
 
-Token Source:
-REVENUECAT_STORE_TRANSACTION_ID
+Store Transaction:
+NONE
 
-Transaction Source:
-REVENUECAT_TEST_STORE
+RevenueCat Subscription Active:
+NO
 
-Public API Key RevenueCat:
-test_AvyjuRHzlxvgfTgTsPNNTeTNaEG
-
-Hạn Dùng Máy Chủ:
-2026-09-29T15:57:58Z
-
-Product:
-locket_1600_1y
-
-UID:
-1a73l0yKjleF7djpO7oYeP4u8ri1
-================================================================================
-
---------------------------------------------------------------------------------
-1. VALIDATION OUTPUT JSON (REVENUECAT TEST STORE CHẠY TRÊN WINDOWS)
---------------------------------------------------------------------------------
-{
-  "transaction_source": "REVENUECAT_TEST_STORE",
-  "transaction_id": "test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1",
-  "original_transaction_id": "test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1",
-  "product_id": "locket_1600_1y",
-  "jws_length": 0,
-  "jws_segments": 0,
-  "jws_contains_ellipsis": false,
-  "storekit_verified": false,
-  "revenuecat_subscription_active": true,
-  "revenuecat_store_transaction_id": "test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1",
-  "transaction_ids_match": true,
-  "final_status": "REVENUECAT TEST ONLY"
-}
-
---------------------------------------------------------------------------------
-2. LIVE REVENUECAT TEST STORE SUBSCRIBER RESPONSE
---------------------------------------------------------------------------------
-HTTP Status Code : 200
-
-Raw Subscriptions:
-{
-  "locket_1600_1y": {
-    "auto_resume_date": null,
-    "billing_issues_detected_at": null,
-    "display_name": "Locket yearly",
-    "expires_date": "2026-09-29T15:57:58Z",
-    "grace_period_expires_date": null,
-    "is_sandbox": true,
-    "original_purchase_date": "2026-09-29T14:57:58Z",
-    "period_type": "normal",
-    "price": {
-      "amount": 0.99,
-      "currency": "USD"
-    },
-    "purchase_date": "2026-09-29T14:57:58Z",
-    "refunded_at": null,
-    "store": "test_store",
-    "store_transaction_id": "test_store_token_1790693897",
-    "unsubscribe_detected_at": null
-  }
-}
-
-Raw Entitlements:
-{
-  "gold": {
-    "expires_date": "2026-09-29T15:57:58Z",
-    "grace_period_expires_date": null,
-    "product_identifier": "locket_1600_1y",
-    "purchase_date": "2026-09-29T14:57:58Z"
-  }
-}
-
-store_transaction_id : test_store_token_1a73l0yKjleF7djpO7oYeP4u8ri1
-store                : test_store
-is_sandbox           : true
-purchase_date        : 2026-09-29T14:57:58Z
-expires_date         : 2026-09-29T15:57:58Z
-
---------------------------------------------------------------------------------
-3. TÌNH TRẠNG APPLE APP STORE KEY (appl_JngFETzdodyLmCREOlwTUtXdQik)
---------------------------------------------------------------------------------
-- Trên App Store key (appl_...): Subscriptions = 0, Entitlements = 0.
-- Lý do: Key appl_... yêu cầu receipt từ Apple StoreKit 2 thật (chỉ có trên iOS/macOS).
-- Giải pháp khi không có máy Mac vật lý:
-  + CÁCH 1 (Khuyên dùng): Dùng Test Store Key 'test_AvyjuRHzlxvgfTgTsPNNTeTNaEG' để test full chức năng
-    mua hàng, mở khóa Gold, kiểm tra hạn dùng máy chủ ngay trên Windows (đã chạy thành công ở trên!).
-  + CÁCH 2: Dùng GitHub Actions (.github/workflows/storekit_test.yml) - GitHub cấp máy Mac M2
-    miễn phí trên cloud để build và test StoreKit 2.
+Final Status:
+APPLE_SANDBOX_PURCHASE_REQUIRED
 
 ================================================================================
-                          KẾT THÚC BÁO CÁO                                      
+CHI TIẾT ĐỐI SOÁT LIVE REVENUECAT (READ-ONLY)
+================================================================================
+App User ID                 : 1a73l0yKjleF7djpO7oYeP4u8ri1
+Public Key                  : appl_JngFETzdodyLmCREOlwTUtXdQik
+Target Offering             : locket_199
+Target Package              : $rc_annual
+Expected Product            : locket_1600_1y
+RevenueCat HTTP Status Code : 200
+Active Subscriptions        : 0
+Active Entitlements         : 0
+Store Transaction ID        : None
+Store Source                : None
+
+LƯU Ý QUAN TRỌNG:
+1. Dự án ĐÃ XÓA HOÀN TOÀN RevenueCat Test Store (Không dùng test_ key, không tạo test_store_token).
+2. Để chuyển trạng thái thành VERIFIED_ACTIVE:
+   Cần chạy trực tiếp ứng dụng iOS trên Xcode/Simulator/Thiết bị thật đã đăng nhập tài khoản
+   Apple Sandbox Tester, thực hiện purchase gói locket_1600_1y qua StoreKit 2.
 ================================================================================

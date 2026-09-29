@@ -46,8 +46,7 @@ final class RevenueCatViewModel: ObservableObject {
     @Published var packageIdentifier: String = RevenueCatConfig.packageID
     @Published var offeringIdentifier: String = RevenueCatConfig.offeringID
 
-    // 2. Thông tin Transaction & Store
-    @Published var store: String = "test_store"
+    @Published var store: String = "app_store"
     @Published var storeTransactionIdentifier: String = "-"
     @Published var transactionIdentifier: String = "-"
     @Published var originalTransactionIdentifier: String = "nil"
