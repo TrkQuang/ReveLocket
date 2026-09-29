@@ -1,47 +1,42 @@
 import Foundation
 import SwiftUI
 
-// MARK: - 0. RevenueCat Environment Mode (Section 14)
+// MARK: - 0. RevenueCat Environment Mode (Section 1 & 14)
 public enum RevenueCatEnvironment: String, Codable, CaseIterable {
-    case testStore = "test_store"
+    case xcodeLocalStoreKit = "xcode_local_storekit"
     case appStore = "app_store"
+    case testStore = "test_store"
 
     public var defaultAPIKey: String {
-        switch self {
-        case .testStore: return "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
-        case .appStore: return "appl_JngFETzdodyLmCREOlwTUtXdQik"
-        }
+        return "appl_JngFETzdodyLmCREOlwTUtXdQik"
     }
 
     public var defaultAppUserID: String {
-        switch self {
-        case .testStore: return "kqdepzai"
-        case .appStore: return "1a73l0yKjleF7djpO7oYeP4u8ri1"
-        }
+        return "kqdepzai"
     }
 
     public var defaultOfferingID: String {
         switch self {
+        case .xcodeLocalStoreKit, .appStore: return "locket_199"
         case .testStore: return "default"
-        case .appStore: return "locket_199"
         }
     }
 }
 
 // MARK: - 1. Environment & Source Types
 public enum TransactionSource: String, Codable, CaseIterable {
+    case xcodeLocalStoreKit = "XCODE_LOCAL_STOREKIT"
     case revenueCatTestStore = "REVENUECAT_TEST_STORE"
     case appleProduction = "APPLE_PRODUCTION"
     case appleSandbox = "APPLE_SANDBOX"
-    case xcodeLocalStoreKit = "XCODE_LOCAL_STOREKIT"
     case unknown = "UNKNOWN"
 
     public var displayName: String {
         switch self {
+        case .xcodeLocalStoreKit: return "Xcode Local StoreKit (LocketGold.storekit)"
         case .revenueCatTestStore: return "RevenueCat Test Store (Web/Sandbox)"
         case .appleProduction: return "Apple App Store (Production)"
         case .appleSandbox: return "Apple Sandbox / TestFlight"
-        case .xcodeLocalStoreKit: return "Xcode Local StoreKit (.storekit)"
         case .unknown: return "Chưa xác định"
         }
     }
@@ -53,14 +48,17 @@ public enum TransactionSource: String, Codable, CaseIterable {
 
 // MARK: - 1.1 Config Flag (Requirement 12)
 public enum PurchaseEnvironment: String, Codable, CaseIterable {
+    case xcodeLocal = "XCODE_LOCAL_STOREKIT"
     case revenueCatTestStore = "REVENUECAT_TEST_STORE"
     case appleSandbox = "APPLE_SANDBOX"
     case appleProduction = "APPLE_PRODUCTION"
-    case xcodeLocal = "XCODE_LOCAL"
 }
 
 // MARK: - 2. Final Verification Status
 public enum MasterKeyStatus: String, Codable, CaseIterable {
+    case localStoreKitRevenueCatActive = "LOCAL_STOREKIT_REVENUECAT_ACTIVE"
+    case revenueCatLocalStoreKitSyncFailed = "REVENUECAT_LOCAL_STOREKIT_SYNC_FAILED"
+    case storeKitLocalPurchaseRequired = "STOREKIT_LOCAL_PURCHASE_REQUIRED"
     case revenueCatTestGoldActive = "REVENUECAT_TEST_GOLD_ACTIVE"
     case verifiedActive = "VERIFIED_ACTIVE"
     case purchaseRequired = "PURCHASE_REQUIRED"
@@ -77,6 +75,9 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
 
     public var badgeColor: Color {
         switch self {
+        case .localStoreKitRevenueCatActive: return .green
+        case .revenueCatLocalStoreKitSyncFailed: return .red
+        case .storeKitLocalPurchaseRequired: return .orange
         case .revenueCatTestGoldActive: return .purple
         case .verifiedActive: return .green
         case .purchaseRequired, .appleSandboxPurchaseRequired: return .orange
@@ -91,6 +92,9 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
 
     public var badgeIcon: String {
         switch self {
+        case .localStoreKitRevenueCatActive: return "checkmark.seal.fill"
+        case .revenueCatLocalStoreKitSyncFailed: return "exclamationmark.triangle.fill"
+        case .storeKitLocalPurchaseRequired: return "cart.badge.questionmark"
         case .revenueCatTestGoldActive: return "crown.fill"
         case .verifiedActive: return "checkmark.seal.fill"
         case .purchaseRequired, .appleSandboxPurchaseRequired: return "cart.badge.questionmark"

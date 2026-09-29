@@ -33,13 +33,13 @@ public struct RevenueCatCustomerSummary: Codable {
 public final class RevenueCatService {
     public static let shared = RevenueCatService()
 
-    public static let defaultEnvironment: RevenueCatEnvironment = .testStore
-    public static let defaultPublicKey = "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
+    public static let defaultEnvironment: RevenueCatEnvironment = .xcodeLocalStoreKit
+    public static let defaultPublicKey = "appl_JngFETzdodyLmCREOlwTUtXdQik"
     public static let defaultAppUserID = "kqdepzai"
-    public static let defaultOfferingID = "default"
+    public static let defaultOfferingID = "locket_199"
     public static let defaultPackageID = "$rc_annual"
     public static let defaultProductID = "locket_1600_1y"
-    public static let defaultEntitlementID = "gold"
+    public static let defaultEntitlementID = "Gold"
 
     private let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()

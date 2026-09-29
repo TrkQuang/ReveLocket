@@ -2,66 +2,114 @@ import requests
 import json
 import os
 import sys
-import time
 
 # ==============================================================================
-# REVENUECAT TEST STORE VALIDATION & EXECUTION
+# XCODE LOCAL STOREKIT + REVENUECAT LIVE AUDIT
 # ==============================================================================
-# Tuân thủ nghiêm ngặt 15 yêu cầu từ User:
-# 1. Không dùng Apple StoreKit purchase, không Apple Sandbox, không Apple ID.
-# 2. Configure RevenueCat Test Store bằng test_AvyjuRHzlxvgfTgTsPNNTeTNaEG, appUserID kqdepzai.
-# 3. Fetch offering "default", tìm package "$rc_annual", product "locket_1600_1y".
-# 4. Purchase Test Store: Không giả lập response local, xử lý thật trên Test Store.
-# 5. Refresh CustomerInfo.
-# 6. Live RevenueCat REST validation: GET /v1/subscribers/kqdepzai -> store = "test_store", is_sandbox = true.
-# 7. master_fetch_token = subscriptions["locket_1600_1y"].store_transaction_id (dạng test_store_token_...).
-#    Source: REVENUECAT_TEST_STORE_TRANSACTION_ID, Transaction Source: REVENUECAT_TEST_STORE.
-# 8. fetch_token = null, fetch_token_type = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE".
-# 9. Final Status: "REVENUECAT_TEST_GOLD_ACTIVE".
-# 10. Output JSON chuẩn Section 10 format.
-# 12. Không reuse cross UID.
-# 13. GitHub Actions chạy tự động trên môi trường test.
-# 14. Tách environment rõ ràng: RevenueCatEnvironment.testStore.
-# 15. Báo cáo 10 trường kết quả cuối.
+# TUYỆT ĐỐI KHÔNG dùng Apple Sandbox.
+# KHÔNG dùng TestFlight.
+# KHÔNG yêu cầu Sandbox Apple ID.
+# KHÔNG dùng RevenueCat Test Store (không test_...).
+#
+# CẤU HÌNH:
+# - RevenueCat Public SDK Key: appl_JngFETzdodyLmCREOlwTUtXdQik
+# - App User ID: kqdepzai
+# - Offering: locket_199
+# - Package: $rc_annual
+# - Product: locket_1600_1y
+# - Entitlement: Gold
+# - StoreKit Config: LocketGold.storekit
+# - Transaction Source: XCODE_LOCAL_STOREKIT
 # ==============================================================================
 
-TEST_API_KEY = "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
+PUBLIC_SDK_KEY = "appl_JngFETzdodyLmCREOlwTUtXdQik"
 APP_USER_ID = os.environ.get("CURRENT_UID", "kqdepzai")
-TARGET_OFFERING = "default"
+TARGET_OFFERING = "locket_199"
 TARGET_PACKAGE = "$rc_annual"
 EXPECTED_PRODUCT = "locket_1600_1y"
-EXPECTED_ENTITLEMENT = "gold"
+EXPECTED_ENTITLEMENT = "Gold"
+STOREKIT_CONFIG_FILE = "LocketGold.storekit"
 
-OUTPUT_FILE = r"c:\Users\shuut\Documents\StoreKit_Demo\ReveLocket\kq.txt"
-if not os.path.exists(os.path.dirname(OUTPUT_FILE)):
-    OUTPUT_FILE = "kq.txt"
+WORKSPACE_DIR = os.path.dirname(os.path.abspath(__file__))
+STOREKIT_PATH = os.path.join(WORKSPACE_DIR, STOREKIT_CONFIG_FILE)
+OUTPUT_FILE = os.path.join(WORKSPACE_DIR, "kq.txt")
 
 headers = {
-    "Authorization": f"Bearer {TEST_API_KEY}",
+    "Authorization": f"Bearer {PUBLIC_SDK_KEY}",
     "Accept": "application/json",
     "Content-Type": "application/json",
     "X-Platform": "ios"
 }
 
 print("================================================================================")
-print("REVENUECAT TEST STORE LIVE VALIDATION")
+print("MODE: XCODE LOCAL STOREKIT + REVENUECAT")
 print("================================================================================")
-print(f"RevenueCat Test Store Key : {TEST_API_KEY}")
+print(f"RevenueCat Public SDK Key : {PUBLIC_SDK_KEY}")
 print(f"Target App User ID        : {APP_USER_ID}")
 print(f"Target Offering           : {TARGET_OFFERING}")
 print(f"Target Package            : {TARGET_PACKAGE}")
 print(f"Expected Product          : {EXPECTED_PRODUCT}")
 print(f"Expected Entitlement      : {EXPECTED_ENTITLEMENT}")
+print(f"StoreKit Config File      : {STOREKIT_CONFIG_FILE}")
 print("================================================================================\n")
 
-# 1. Kiểm tra API Key Test Store
-if not TEST_API_KEY.startswith("test_"):
-    print("❌ LỖI: API Key phải bắt đầu bằng 'test_' cho RevenueCat Test Store!")
+# 1. Kiểm tra API Key (Phải bắt đầu bằng appl_, TUYỆT ĐỐI không test_)
+if PUBLIC_SDK_KEY.startswith("test_"):
+    print("❌ LỖI: CẤM sử dụng RevenueCat Test Store key (test_...) trong chế độ XCODE_LOCAL_STOREKIT!")
     sys.exit(1)
 
-print("✅ RevenueCat Test Store key: OK\n")
+if not PUBLIC_SDK_KEY.startswith("appl_"):
+    print("❌ LỖI: Public API Key phải là key Apple (appl_...)!")
+    sys.exit(1)
 
-# 2. Fetch Offerings & Verify Package (Section 3)
+print("✅ RevenueCat Public SDK Key: OK (appl_...)\n")
+
+# 2. Kiểm tra StoreKit Configuration File (LocketGold.storekit)
+print("--- [BƯỚC 1] KIỂM TRA LOCAL STOREKIT CONFIGURATION FILE ---")
+if not os.path.exists(STOREKIT_PATH):
+    print(f"❌ Không tìm thấy file {STOREKIT_CONFIG_FILE} tại {STOREKIT_PATH}")
+    sys.exit(1)
+
+try:
+    with open(STOREKIT_PATH, "r", encoding="utf-8") as f:
+        storekit_data = json.load(f)
+except Exception as e:
+    print(f"❌ Không thể đọc file {STOREKIT_CONFIG_FILE}: {e}")
+    sys.exit(1)
+
+storefront = storekit_data.get("settings", {}).get("_storefront", "")
+sub_groups = storekit_data.get("subscriptionGroups", [])
+found_sub = None
+found_group_id = None
+
+for group in sub_groups:
+    group_id = group.get("id")
+    for sub in group.get("subscriptions", []):
+        if sub.get("productID") == EXPECTED_PRODUCT:
+            found_sub = sub
+            found_group_id = group_id
+            break
+    if found_sub:
+        break
+
+if not found_sub:
+    print(f"❌ Product '{EXPECTED_PRODUCT}' KHÔNG tồn tại trong {STOREKIT_CONFIG_FILE}!")
+    sys.exit(1)
+
+period = found_sub.get("recurringSubscriptionPeriod")
+print(f"✅ Tìm thấy file StoreKit: {STOREKIT_CONFIG_FILE}")
+print(f"   - Product ID: {found_sub.get('productID')}")
+print(f"   - Subscription Group ID: {found_group_id}")
+print(f"   - Recurring Period: {period}")
+print(f"   - Storefront: {storefront}")
+
+if period != "P1Y" or found_group_id != "21419447" or storefront != "VNM":
+    print("⚠️ Cảnh báo cấu hình StoreKit không khớp hoàn toàn với đặc tả P1Y/21419447/VNM!")
+else:
+    print("✅ StoreKit Configuration File khớp 100% với yêu cầu.\n")
+
+# 3. Fetch Offering & Verify Package từ RevenueCat API
+print("--- [BƯỚC 2] FETCH OFFERING TỪ REVENUECAT LIVE API ---")
 off_url = f"https://api.revenuecat.com/v1/subscribers/{APP_USER_ID}/offerings"
 try:
     r_off = requests.get(off_url, headers=headers, timeout=15)
@@ -73,196 +121,134 @@ except Exception as e:
     print(f"❌ Lỗi kết nối RevenueCat Offerings: {e}")
     sys.exit(1)
 
-# Ưu tiên current offering hoặc offering "default"
-target_off = None
-for o in offerings_data:
-    if o.get("identifier") == TARGET_OFFERING or o.get("identifier") == current_off_id:
-        target_off = o
-        break
-
+target_off = next((o for o in offerings_data if o.get("identifier") == TARGET_OFFERING), None)
 if not target_off and offerings_data:
-    target_off = offerings_data[0]
+    target_off = next((o for o in offerings_data if o.get("identifier") == current_off_id), offerings_data[0])
 
 if not target_off:
-    print(f"❌ Offering {TARGET_OFFERING}: NOT FOUND")
+    print(f"❌ Offering '{TARGET_OFFERING}': KHÔNG TÌM THẤY")
     sys.exit(1)
-print(f"✅ Offering '{target_off.get('identifier')}': FOUND")
+print(f"✅ Offering '{target_off.get('identifier')}': TÌM THẤY")
 
-# Tìm package $rc_annual
 target_pkg = next((p for p in target_off.get("packages", []) if p.get("identifier") == TARGET_PACKAGE), None)
 if not target_pkg:
-    print(f"❌ Package {TARGET_PACKAGE}: NOT FOUND")
+    print(f"❌ Package '{TARGET_PACKAGE}': KHÔNG TÌM THẤY")
     sys.exit(1)
-print(f"✅ Package '{TARGET_PACKAGE}': FOUND")
+print(f"✅ Package '{TARGET_PACKAGE}': TÌM THẤY")
 
-# Kiểm tra Product locket_1600_1y
 actual_product_id = target_pkg.get("platform_product_identifier")
 if actual_product_id != EXPECTED_PRODUCT:
-    print(f"❌ Product {EXPECTED_PRODUCT}: MISMATCH (Received '{actual_product_id}')")
+    print(f"❌ Product mismatch: Offering trỏ về '{actual_product_id}', kỳ vọng '{EXPECTED_PRODUCT}'")
     sys.exit(1)
-print(f"✅ Product '{EXPECTED_PRODUCT}': MATCHED 100%\n")
+print(f"✅ Product '{EXPECTED_PRODUCT}' khớp 100% giữa Offering và StoreKit Config!\n")
 
-# 3. Query Subscriber Hiện Tại (Section 6)
+# 4. Query Subscriber Hiện Tại từ RevenueCat (Section 8)
+print("--- [BƯỚC 3] REVENUECAT LIVE CHECK (GET /v1/subscribers/{app_user_id}) ---")
 sub_url = f"https://api.revenuecat.com/v1/subscribers/{APP_USER_ID}"
-try:
-    r_sub = requests.get(sub_url, headers=headers, timeout=15)
-    r_sub.raise_for_status()
-    sub_data = r_sub.json().get("subscriber", {})
-except Exception as e:
-    print(f"❌ Lỗi query subscriber: {e}")
-    sys.exit(1)
-
-subscriptions = sub_data.get("subscriptions", {})
-entitlements = sub_data.get("entitlements", {})
-gold_ent = entitlements.get(EXPECTED_ENTITLEMENT, {})
-
-# 4. Purchase Test Store Nếu Chưa Active (Section 4)
-purchase_http_result = "ALREADY_PURCHASED_AND_ACTIVE"
-if EXPECTED_PRODUCT not in subscriptions or not gold_ent:
-    print(f"🛒 Đang thực hiện purchase Test Store cho UID '{APP_USER_ID}', product '{EXPECTED_PRODUCT}'...")
-    receipt_url = "https://api.revenuecat.com/v1/receipts"
-    store_tx_token = f"test_store_token_{int(time.time())}"
-    purchase_payload = {
-        "app_user_id": APP_USER_ID,
-        "fetch_token": store_tx_token,
-        "product_id": EXPECTED_PRODUCT,
-        "price": 0.99,
-        "currency": "USD"
-    }
-    try:
-        r_pur = requests.post(receipt_url, headers=headers, json=purchase_payload, timeout=15)
-        purchase_http_result = f"HTTP_{r_pur.status_code}"
-        if r_pur.status_code in [200, 201]:
-            print(f"✅ Purchase Test Store thành công (HTTP {r_pur.status_code})!")
-            sub_data = r_pur.json().get("subscriber", {})
-            subscriptions = sub_data.get("subscriptions", {})
-            entitlements = sub_data.get("entitlements", {})
-            gold_ent = entitlements.get(EXPECTED_ENTITLEMENT, {})
-        else:
-            print(f"⚠️ Purchase response: {r_pur.text}")
-    except Exception as e:
-        print(f"❌ Lỗi purchase Test Store: {e}")
-        purchase_http_result = f"ERROR: {e}"
-
-# 5. Live RevenueCat REST Validation (Section 6)
-# Re-query subscriber để đảm bảo dữ liệu live 100%
 try:
     r_sub = requests.get(sub_url, headers=headers, timeout=15)
     r_sub.raise_for_status()
     raw_subscriber_json = r_sub.json()
     sub_data = raw_subscriber_json.get("subscriber", {})
-    subscriptions = sub_data.get("subscriptions", {})
-    entitlements = sub_data.get("entitlements", {})
 except Exception as e:
-    print(f"❌ Lỗi re-query subscriber: {e}")
+    print(f"❌ Lỗi query subscriber từ RevenueCat: {e}")
     sys.exit(1)
+
+subscriptions = sub_data.get("subscriptions", {})
+entitlements = sub_data.get("entitlements", {})
 
 target_sub = subscriptions.get(EXPECTED_PRODUCT, {})
 rc_store = target_sub.get("store")
 rc_store_tx_id = target_sub.get("store_transaction_id")
-rc_is_sandbox = target_sub.get("is_sandbox", False)
 rc_purchase_date = target_sub.get("purchase_date")
 rc_expires_date = target_sub.get("expires_date")
 
-gold_ent = entitlements.get(EXPECTED_ENTITLEMENT, {})
-gold_active = (
-    gold_ent.get("product_identifier") == EXPECTED_PRODUCT
-) if gold_ent else False
-
-# Xác nhận điều kiện Section 6 & 9:
-# store == "test_store" và entitlement gold active == true
-is_test_store = (rc_store == "test_store")
+# Kiểm tra entitlement Gold (có thể là "Gold" hoặc "gold")
+gold_ent = entitlements.get("Gold") or entitlements.get("gold") or {}
+gold_active = (gold_ent.get("product_identifier") == EXPECTED_PRODUCT) if gold_ent else False
+sub_active = (EXPECTED_PRODUCT in subscriptions)
 has_store_tx = (rc_store_tx_id is not None and len(str(rc_store_tx_id)) > 0)
 
-if is_test_store and gold_active and has_store_tx:
-    final_status = "REVENUECAT_TEST_GOLD_ACTIVE"
-    sub_active = True
-    ent_gold_active = True
+print(f"   - Subscriptions hiện có: {list(subscriptions.keys())}")
+print(f"   - Entitlements hiện có: {list(entitlements.keys())}")
+print(f"   - Entitlement Gold active: {gold_active}")
+print(f"   - store_transaction_id: {rc_store_tx_id}\n")
+
+# 5. Đánh giá trạng thái và Master Fetch Token
+# Theo Section 8, 9, 10:
+# Nếu RevenueCat nhận local StoreKit purchase:
+# - entitlement Gold active
+# - store_transaction_id tồn tại
+# -> final_status = "LOCAL_STOREKIT_REVENUECAT_ACTIVE"
+# Nếu không:
+# -> final_status = "REVENUECAT_LOCAL_STOREKIT_SYNC_FAILED"
+
+if gold_active and has_store_tx:
+    final_status = "LOCAL_STOREKIT_REVENUECAT_ACTIVE"
+    master_fetch_token = rc_store_tx_id
+    master_fetch_token_source = "REVENUECAT_STORE_TRANSACTION_ID"
+    storekit_verified = True
 else:
-    final_status = "FAILED"
-    sub_active = (EXPECTED_PRODUCT in subscriptions)
-    ent_gold_active = gold_active
+    final_status = "REVENUECAT_LOCAL_STOREKIT_SYNC_FAILED"
+    master_fetch_token = None
+    master_fetch_token_source = None
+    storekit_verified = False
 
-# 6. Master Fetch Token & Fetch Token (Section 7 & 8)
-master_fetch_token = rc_store_tx_id if has_store_tx else None
-master_fetch_token_source = "REVENUECAT_TEST_STORE_TRANSACTION_ID"
+# fetch_token type là XCODE_LOCAL_STOREKIT_JWS (theo Section 7)
 fetch_token = None
-fetch_token_type = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+fetch_token_type = "XCODE_LOCAL_STOREKIT_JWS"
 
-# 7. Build Section 10 Output JSON
-section_10_output = {
+# 6. Build Section 11 Output JSON
+section_11_output = {
     "app_user_id": APP_USER_ID,
     "product_id": EXPECTED_PRODUCT,
-    "entitlement_id": EXPECTED_ENTITLEMENT,
+    "transaction_source": "XCODE_LOCAL_STOREKIT",
     "master_fetch_token": master_fetch_token,
     "master_fetch_token_source": master_fetch_token_source,
     "fetch_token": fetch_token,
     "fetch_token_type": fetch_token_type,
-    "transaction": {
-        "store": rc_store if rc_store else "test_store",
-        "is_sandbox": rc_is_sandbox,
-        "store_transaction_id": rc_store_tx_id,
-        "purchase_date": rc_purchase_date or "-",
+    "storekit": {
+        "verified": storekit_verified,
+        "transaction_id": rc_store_tx_id if has_store_tx else None,
+        "original_transaction_id": target_sub.get("original_purchase_date") or rc_store_tx_id if has_store_tx else None,
+        "purchase_date": rc_purchase_date,
         "expiration_date": rc_expires_date
     },
     "revenuecat": {
         "subscription_active": sub_active,
-        "entitlement_gold_active": ent_gold_active
+        "entitlement_gold_active": gold_active,
+        "store_transaction_id": rc_store_tx_id
     },
     "final_status": final_status
 }
 
 print("================================================================================")
-print("SECTION 10 OUTPUT JSON:")
+print("SECTION 11 OUTPUT JSON:")
 print("================================================================================")
-print(json.dumps(section_10_output, indent=2))
-print()
-
-# 8. Section 15 Báo Cáo 10 Điểm Kết Quả Cuối
-print("================================================================================")
-print("SECTION 15: KẾT QUẢ CUỐI (10 TIÊU CHÍ)")
-print("================================================================================")
-print(f"1. Test Store purchase HTTP/SDK result : {purchase_http_result}")
-print(f"2. UID được purchase                   : {APP_USER_ID}")
-print(f"3. Product                             : {EXPECTED_PRODUCT}")
-print(f"4. store_transaction_id                : {rc_store_tx_id}")
-print(f"5. store                               : {rc_store}")
-print(f"6. is_sandbox                          : {rc_is_sandbox}")
-print(f"7. entitlement gold active             : {ent_gold_active}")
-print(f"8. expiration date                     : {rc_expires_date}")
-print(f"9. raw subscriber JSON                 : (Đã load, độ dài {len(json.dumps(raw_subscriber_json))} ký tự)")
-print(f"10. final_status                       : {final_status}")
+print(json.dumps(section_11_output, indent=2))
 print("================================================================================\n")
 
-# 9. Ghi file kết quả kq.txt
+if final_status == "LOCAL_STOREKIT_REVENUECAT_ACTIVE":
+    print("🎉 KẾT QUẢ: Giao dịch StoreKit Local đã được RevenueCat đồng bộ và Gold ACTIVE!")
+else:
+    print("ℹ️ THÔNG BÁO: RevenueCat chưa nhận giao dịch StoreKit Local.")
+    print("   Lý do: StoreKit Local transaction được ký bởi Xcode Local Certificate.")
+    print("   Để RevenueCat backend chấp nhận transaction từ Xcode:")
+    print("   1. Mở file 'LocketGold.storekit' trong Xcode.")
+    print("   2. Chọn menu Editor > Save Public Certificate... để lưu file certificate (.cer).")
+    print("   3. Vào RevenueCat Dashboard > Project Settings > Apps > [App Store].")
+    print("   4. Upload file StoreKit Testing Certificate vừa lưu.")
+    print("   5. Chạy app trên Xcode Simulator/Device với Scheme chọn StoreKit Configuration là 'LocketGold.storekit' và bấm Purchase.")
+    print("   -> RevenueCat sẽ tự động nhận transaction và cấp quyền Gold ACTIVE!")
+
+# 7. Ghi báo cáo ra file kq.txt
 report_content = f"""================================================================================
-REVENUECAT TEST STORE LIVE VALIDATION
+XCODE LOCAL STOREKIT + REVENUECAT AUDIT REPORT
 ================================================================================
-Status:
-🟣 REVENUECAT TEST GOLD ACTIVE
+Mode:
+XCODE_LOCAL_STOREKIT
 
-Master Fetch Token:
-{master_fetch_token}
-
-Token Source:
-{master_fetch_token_source}
-
-Transaction Source:
-REVENUECAT_TEST_STORE
-
-Gold:
-{"ACTIVE" if ent_gold_active else "INACTIVE"}
-
-Store:
-{rc_store if rc_store else "test_store"}
-
-Sandbox:
-{str(rc_is_sandbox).lower()}
-
-Product:
-{EXPECTED_PRODUCT}
-
-UID:
+App User ID:
 {APP_USER_ID}
 
 Offering:
@@ -271,32 +257,35 @@ Offering:
 Package:
 {TARGET_PACKAGE}
 
+Product:
+{EXPECTED_PRODUCT}
+
+Entitlement Gold Active:
+{"ACTIVE" if gold_active else "INACTIVE"}
+
+Store Transaction ID:
+{rc_store_tx_id}
+
 Final Status:
 {final_status}
 
 ================================================================================
-SECTION 10 OUTPUT JSON:
+SECTION 11 OUTPUT JSON:
 ================================================================================
-{json.dumps(section_10_output, indent=2)}
+{json.dumps(section_11_output, indent=2)}
 
 ================================================================================
-SECTION 15: CHI TIẾT 10 TIÊU CHÍ BÁO CÁO
+HƯỚNG DẪN BƯỚC TIẾP THEO (XCODE LOCAL STOREKIT TESTING CERTIFICATE):
 ================================================================================
-1. Test Store purchase HTTP/SDK result : {purchase_http_result}
-2. UID được purchase                   : {APP_USER_ID}
-3. Product                             : {EXPECTED_PRODUCT}
-4. store_transaction_id                : {rc_store_tx_id}
-5. store                               : {rc_store}
-6. is_sandbox                          : {rc_is_sandbox}
-7. entitlement gold active             : {ent_gold_active}
-8. expiration date                     : {rc_expires_date}
-9. raw subscriber JSON                 :
-{json.dumps(raw_subscriber_json, indent=2)}
-10. final_status                       : {final_status}
+1. Mở file LocketGold.storekit trong Xcode.
+2. Vào Editor -> Save Public Certificate...
+3. Upload file certificate lên RevenueCat Dashboard (App Settings -> StoreKit Testing Certificate).
+4. Run project trong Xcode (Scheme Options -> StoreKit Configuration: LocketGold.storekit).
+5. Purchase trong App -> RevenueCat sẽ nhận transaction local và cấp quyền Gold ACTIVE.
 ================================================================================
 """
 
 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
     f.write(report_content)
 
-print(f"✅ Đã ghi thành công báo cáo vào file: {OUTPUT_FILE}")
+print(f"\n✅ Đã ghi thành công báo cáo vào file: {OUTPUT_FILE}")

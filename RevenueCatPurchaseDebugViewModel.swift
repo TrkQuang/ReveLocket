@@ -5,12 +5,12 @@ import SwiftUI
 
 // MARK: - Configuration
 enum AppPurchaseConfig {
-    static let apiKey = "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
+    static let apiKey = "appl_JngFETzdodyLmCREOlwTUtXdQik"
     static let appUserID = "kqdepzai"
-    static let targetOfferingID = "default"
+    static let targetOfferingID = "locket_199"
     static let targetPackageID = "$rc_annual"
     static let expectedProductID = "locket_1600_1y"
-    static let targetEntitlementID = "gold"
+    static let targetEntitlementID = "Gold"
 }
 
 // MARK: - View Model
@@ -547,63 +547,48 @@ final class RevenueCatPurchaseDebugViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Helper: Build Final Unified Debug JSON
+    // MARK: - Helper: Build Final Unified Debug JSON (Section 11 Output Format)
     func buildFinalDebugJSON() {
         evaluateMasterFetchToken()
 
-        // Object chuẩn theo Yêu cầu 9
-        let masterPurchaseObject: [String: Any] = [
-            "master_fetch_token": self.masterFetchToken,
-            "master_fetch_token_source": self.masterFetchTokenSource,
-            "transaction_id": self.storeKitTransactionID,
-            "original_transaction_id": self.storeKitOriginalTransactionID,
-            "store_transaction_id": self.rcStoreTransactionID,
-            "signed_transaction_jws": self.signedTransactionJWS.isEmpty ? "None" : self.signedTransactionJWS,
-            "app_transaction_jws": self.appTransactionJWS.isEmpty ? "None" : self.appTransactionJWS,
-            "revenuecat_public_key": self.revenueCatPublicKey,
-            "expiration_date": self.serverExpirationDate
+        let hasStoreTx = self.rcStoreTransactionID != "nil" && !self.rcStoreTransactionID.isEmpty && self.rcStoreTransactionID != "-"
+        let isLocalStoreKitVerified = self.storeKitVerified
+        let isGoldEntitlementActive = self.isGoldActive
+
+        let finalStatus: String
+        if isGoldEntitlementActive && hasStoreTx {
+            finalStatus = "LOCAL_STOREKIT_REVENUECAT_ACTIVE"
+        } else if isLocalStoreKitVerified {
+            finalStatus = "REVENUECAT_LOCAL_STOREKIT_SYNC_FAILED"
+        } else {
+            finalStatus = "STOREKIT_LOCAL_PURCHASE_REQUIRED"
+        }
+
+        let storeKitDict: [String: Any] = [
+            "verified": self.storeKitVerified,
+            "transaction_id": (self.storeKitTransactionID == "-" || self.storeKitTransactionID == "nil") ? (NSNull() as Any) : (self.storeKitTransactionID as Any),
+            "original_transaction_id": (self.storeKitOriginalTransactionID == "-" || self.storeKitOriginalTransactionID == "nil") ? (NSNull() as Any) : (self.storeKitOriginalTransactionID as Any),
+            "purchase_date": (self.storeKitPurchaseDate == "-" || self.storeKitPurchaseDate == "nil") ? (NSNull() as Any) : (self.storeKitPurchaseDate as Any),
+            "expiration_date": (self.storeKitExpirationDate == "-" || self.storeKitExpirationDate == "nil") ? (NSNull() as Any) : (self.storeKitExpirationDate as Any)
+        ]
+
+        let revenueCatDict: [String: Any] = [
+            "subscription_active": isGoldEntitlementActive,
+            "entitlement_gold_active": isGoldEntitlementActive,
+            "store_transaction_id": hasStoreTx ? (self.rcStoreTransactionID as Any) : (NSNull() as Any)
         ]
 
         let debugDict: [String: Any] = [
-            "master_purchase_object": masterPurchaseObject,
             "app_user_id": self.appUserID,
-            "revenuecat_public_key": self.revenueCatPublicKey,
-            "offering": self.offeringID,
-            "package": self.packageID,
             "product_id": self.productID,
-            "master_fetch_token": self.masterFetchToken,
-            "master_fetch_token_source": self.masterFetchTokenSource,
-            "master_token_candidates": self.masterTokenCandidates,
-            "server_expiration_date": self.serverExpirationDate,
-            "storekit": [
-                "verified": self.storeKitVerified,
-                "transaction_id": self.storeKitTransactionID,
-                "original_transaction_id": self.storeKitOriginalTransactionID,
-                "product_id": self.storeKitProductID,
-                "product_type": self.storeKitProductType,
-                "purchase_date": self.storeKitPurchaseDate,
-                "original_purchase_date": self.storeKitOriginalPurchaseDate,
-                "expiration_date": self.storeKitExpirationDate,
-                "revocation_date": self.storeKitRevocationDate,
-                "revocation_reason": self.storeKitRevocationReason,
-                "is_upgraded": self.storeKitIsUpgraded,
-                "environment": self.storeKitEnvironment,
-                "ownership_type": self.storeKitOwnershipType,
-                "app_account_token": self.storeKitAppAccountToken
-            ],
-            "signed_transaction_jws": self.signedTransactionJWS.isEmpty ? "None (No StoreKit 2 transaction loaded yet)" : self.signedTransactionJWS,
-            "app_transaction_jws": self.appTransactionJWS.isEmpty ? "None" : self.appTransactionJWS,
-            "fetch_token": self.fetchToken as Any? ?? NSNull(),
-            "fetch_token_status": self.fetchTokenStatus,
-            "revenuecat": [
-                "original_app_user_id": self.rcOriginalAppUserId,
-                "store_transaction_id": self.rcStoreTransactionID,
-                "active_subscriptions": self.rcActiveSubscriptions,
-                "purchased_products": self.rcAllPurchasedProducts,
-                "management_url": self.rcManagementURL,
-                "request_date": self.rcRequestDate,
-                "entitlements": self.rcEntitlementsSummary
-            ]
+            "transaction_source": "XCODE_LOCAL_STOREKIT",
+            "master_fetch_token": hasStoreTx ? (self.rcStoreTransactionID as Any) : (NSNull() as Any),
+            "master_fetch_token_source": hasStoreTx ? ("REVENUECAT_STORE_TRANSACTION_ID" as Any) : (NSNull() as Any),
+            "fetch_token": self.signedTransactionJWS.isEmpty ? (NSNull() as Any) : (self.signedTransactionJWS as Any),
+            "fetch_token_type": "XCODE_LOCAL_STOREKIT_JWS",
+            "storekit": storeKitDict,
+            "revenuecat": revenueCatDict,
+            "final_status": finalStatus
         ]
 
         if let data = try? JSONSerialization.data(withJSONObject: debugDict, options: [.prettyPrinted, .sortedKeys]),

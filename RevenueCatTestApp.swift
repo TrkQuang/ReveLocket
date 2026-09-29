@@ -1,14 +1,15 @@
 import SwiftUI
+import StoreKit
 import RevenueCat
 
 // MARK: - Configuration Constants
 enum RevenueCatConfig {
-    static let apiKey = "test_AvyjuRHzlxvgfTgTsPNNTeTNaEG"
+    static let apiKey = "appl_JngFETzdodyLmCREOlwTUtXdQik"
     static let appUserID = "kqdepzai"
-    static let offeringID = "default"
+    static let offeringID = "locket_199"
     static let packageID = "$rc_annual"
     static let expectedProductID = "locket_1600_1y"
-    static let entitlementID = "gold"
+    static let entitlementID = "Gold"
 }
 
 // MARK: - Main Application Entry Point
@@ -20,12 +21,12 @@ struct RevenueCatTestApp: App {
         // Bật log mức Debug để in chi tiết mọi request, response, token và metadata từ SDK
         Purchases.logLevel = .debug
 
-        // Cấu hình Purchases SDK cho RevenueCat Test Store
+        // Cấu hình Purchases SDK cho Xcode Local StoreKit + RevenueCat
         Purchases.configure(
             withAPIKey: RevenueCatConfig.apiKey,
             appUserID: RevenueCatConfig.appUserID
         )
-        print("🚀 [RevenueCat Test Store] Initialized with App User ID: \(RevenueCatConfig.appUserID)")
+        print("🚀 [Xcode Local StoreKit] Initialized with App User ID: \(RevenueCatConfig.appUserID)")
     }
 
     var body: some Scene {
@@ -45,7 +46,7 @@ final class RevenueCatViewModel: ObservableObject {
     @Published var packageIdentifier: String = RevenueCatConfig.packageID
     @Published var offeringIdentifier: String = RevenueCatConfig.offeringID
 
-    @Published var store: String = "test_store"
+    @Published var store: String = "app_store"
     @Published var storeTransactionIdentifier: String = "-"
     @Published var transactionIdentifier: String = "-"
     @Published var originalTransactionIdentifier: String = "nil"
@@ -65,10 +66,10 @@ final class RevenueCatViewModel: ObservableObject {
 
     // 4. Token & Security Investigation (Kiểm tra fetch_token, receipt, JWS)
     @Published var fetchToken: String? = nil
-    @Published var fetchTokenType: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
-    @Published var fetchTokenStatus: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
-    @Published var receiptStatus: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
-    @Published var jwsStatus: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+    @Published var fetchTokenType: String = "XCODE_LOCAL_STOREKIT_JWS"
+    @Published var fetchTokenStatus: String = "XCODE_LOCAL_STOREKIT_JWS (NO TRANSACTION YET)"
+    @Published var receiptStatus: String = "XCODE_LOCAL_STOREKIT (LocketGold.storekit)"
+    @Published var jwsStatus: String = "STOREKIT 2 LOCAL JWS (SIGNED BY LOCAL CERTIFICATE)"
 
     // 5. Raw Data & JSON Dumps
     @Published var unifiedDebugJSON: String = ""
@@ -160,10 +161,24 @@ final class RevenueCatViewModel: ObservableObject {
                 print("📅 [RevenueCat DEBUG] Transaction Purchase Date: \(tx.purchaseDate)")
             }
 
-            // Test Store Mode: Không gọi Apple StoreKit 2, fetch_token = null
-            self.fetchToken = nil
-            self.fetchTokenType = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
-            self.fetchTokenStatus = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+            // Xcode Local StoreKit 2: Trích xuất signed transaction JWS thật từ StoreKit local
+            if #available(iOS 15.0, *) {
+                for await entResult in StoreKit.Transaction.currentEntitlements {
+                    if case .verified(let transaction) = entResult, transaction.productID == RevenueCatConfig.expectedProductID {
+                        self.fetchToken = entResult.jwsRepresentation
+                        self.fetchTokenType = "XCODE_LOCAL_STOREKIT_JWS"
+                        self.fetchTokenStatus = "STOREKIT 2 LOCAL JWS (VERIFIED)"
+                        self.transactionIdentifier = String(transaction.id)
+                        self.originalTransactionIdentifier = String(transaction.originalID)
+                        self.purchaseDate = isoFormatter.string(from: transaction.purchaseDate)
+                        if let exp = transaction.expirationDate {
+                            self.expirationDate = isoFormatter.string(from: exp)
+                        }
+                        print("🔑 [StoreKit 2 Local] Verified Local Transaction: \(transaction.id)")
+                        break
+                    }
+                }
+            }
 
             // Serialize RAW PURCHASE RESULT
             buildRawPurchaseResultJSON(result: result)
@@ -348,28 +363,46 @@ final class RevenueCatViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Helper: Build Unified Debug JSON (Section 10 Output Format)
+    // MARK: - Helper: Build Unified Debug JSON (Section 11 Output Format)
     func buildUnifiedDebugJSON() {
+        let isGoldActive = self.entitlementIsActive
+        let hasStoreTx = self.storeTransactionIdentifier != "-" && !self.storeTransactionIdentifier.isEmpty
+        let isLocalStoreKitVerified = self.fetchToken != nil
+        
+        let finalStatus: String
+        if isGoldActive && hasStoreTx {
+            finalStatus = "LOCAL_STOREKIT_REVENUECAT_ACTIVE"
+        } else if isLocalStoreKitVerified {
+            finalStatus = "REVENUECAT_LOCAL_STOREKIT_SYNC_FAILED"
+        } else {
+            finalStatus = "STOREKIT_LOCAL_PURCHASE_REQUIRED"
+        }
+
+        let storeKitDict: [String: Any] = [
+            "verified": isLocalStoreKitVerified,
+            "transaction_id": self.transactionIdentifier == "-" ? (NSNull() as Any) : (self.transactionIdentifier as Any),
+            "original_transaction_id": (self.originalTransactionIdentifier == "nil" || self.originalTransactionIdentifier == "-") ? (NSNull() as Any) : (self.originalTransactionIdentifier as Any),
+            "purchase_date": self.purchaseDate == "-" ? (NSNull() as Any) : (self.purchaseDate as Any),
+            "expiration_date": self.expirationDate == "-" ? (NSNull() as Any) : (self.expirationDate as Any)
+        ]
+
+        let revenueCatDict: [String: Any] = [
+            "subscription_active": isGoldActive,
+            "entitlement_gold_active": isGoldActive,
+            "store_transaction_id": hasStoreTx ? (self.storeTransactionIdentifier as Any) : (NSNull() as Any)
+        ]
+
         let debugDict: [String: Any] = [
             "app_user_id": self.appUserID,
             "product_id": self.productIdentifier.isEmpty ? RevenueCatConfig.expectedProductID : self.productIdentifier,
-            "entitlement_id": RevenueCatConfig.entitlementID,
-            "master_fetch_token": self.storeTransactionIdentifier == "-" ? NSNull() : self.storeTransactionIdentifier,
-            "master_fetch_token_source": "REVENUECAT_TEST_STORE_TRANSACTION_ID",
-            "fetch_token": NSNull(),
-            "fetch_token_type": "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE",
-            "transaction": [
-                "store": self.store,
-                "is_sandbox": true,
-                "store_transaction_id": self.storeTransactionIdentifier == "-" ? NSNull() : self.storeTransactionIdentifier,
-                "purchase_date": self.purchaseDate,
-                "expiration_date": self.expirationDate == "-" ? NSNull() : self.expirationDate
-            ],
-            "revenuecat": [
-                "subscription_active": self.entitlementIsActive,
-                "entitlement_gold_active": self.entitlementIsActive
-            ],
-            "final_status": self.entitlementIsActive ? "REVENUECAT_TEST_GOLD_ACTIVE" : "PURCHASE_REQUIRED"
+            "transaction_source": "XCODE_LOCAL_STOREKIT",
+            "master_fetch_token": hasStoreTx ? (self.storeTransactionIdentifier as Any) : (NSNull() as Any),
+            "master_fetch_token_source": hasStoreTx ? ("REVENUECAT_STORE_TRANSACTION_ID" as Any) : (NSNull() as Any),
+            "fetch_token": self.fetchToken != nil ? (self.fetchToken! as Any) : (NSNull() as Any),
+            "fetch_token_type": "XCODE_LOCAL_STOREKIT_JWS",
+            "storekit": storeKitDict,
+            "revenuecat": revenueCatDict,
+            "final_status": finalStatus
         ]
 
         if let data = try? JSONSerialization.data(withJSONObject: debugDict, options: [.prettyPrinted, .sortedKeys]),

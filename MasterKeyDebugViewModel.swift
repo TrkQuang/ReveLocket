@@ -19,13 +19,13 @@ public final class MasterKeyDebugViewModel: ObservableObject {
     // MARK: - 2. Active Master Key & Source
     @Published public var masterFetchToken: String? = nil
     @Published public var masterFetchTokenDisplay: String = "null"
-    @Published public var masterFetchTokenSource: MasterTokenSource = .revenueCatTestStoreTransactionID
-    @Published public var transactionSource: TransactionSource = .revenueCatTestStore
-    @Published public var finalStatus: MasterKeyStatus = .purchaseRequired
+    @Published public var masterFetchTokenSource: MasterTokenSource = .unavailable
+    @Published public var transactionSource: TransactionSource = .xcodeLocalStoreKit
+    @Published public var finalStatus: MasterKeyStatus = .storeKitLocalPurchaseRequired
 
     // MARK: - 2.1 Fetch Token
     @Published public var fetchToken: String? = nil
-    @Published public var fetchTokenType: String = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
+    @Published public var fetchTokenType: String = "XCODE_LOCAL_STOREKIT_JWS"
 
     // MARK: - 3. Server Expiration Date (ISO-8601)
     @Published public var serverExpirationDate: String = "-"
@@ -97,7 +97,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         await verifyOffering()
         await refreshCustomerInfo()
 
-        if environment == .appStore {
+        if environment == .xcodeLocalStoreKit || environment == .appStore {
             await refreshStoreKitTransactions()
         } else {
             // Trong Test Store: không gọi StoreKit
@@ -208,12 +208,16 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         self.revenueCatPublicKey = env.defaultAPIKey
         self.appUserID = env.defaultAppUserID
         self.offeringID = env.defaultOfferingID
-        if env == .testStore {
+        if env == .xcodeLocalStoreKit {
+            self.transactionSource = .xcodeLocalStoreKit
+            self.fetchTokenType = "XCODE_LOCAL_STOREKIT_JWS"
+        } else if env == .appStore {
+            self.transactionSource = .appleSandbox
+            self.fetchTokenType = "STOREKIT2_JWS_TRANSACTION"
+        } else {
+            self.transactionSource = .revenueCatTestStore
             self.fetchToken = nil
             self.fetchTokenType = "NOT_AVAILABLE_IN_REVENUECAT_TEST_STORE"
-            self.transactionSource = .revenueCatTestStore
-        } else {
-            self.fetchTokenType = "STOREKIT2_JWS_TRANSACTION"
         }
         await initialLoad()
     }
@@ -278,6 +282,52 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         print("🔍 [ViewModel] Đang đánh giá Master Fetch Token Candidates...")
 
         var candidateMap: [String: String] = [:]
+
+        // Xử lý riêng cho Xcode Local StoreKit (Section 1, 7, 8, 9, 10, 11)
+        if environment == .xcodeLocalStoreKit {
+            self.transactionSource = .xcodeLocalStoreKit
+            self.fetchTokenType = "XCODE_LOCAL_STOREKIT_JWS"
+
+            if storeKitDetails?.isVerified == true && !signedTransactionJWS.isEmpty {
+                self.fetchToken = signedTransactionJWS
+            } else {
+                self.fetchToken = nil
+            }
+
+            let rcStoreTxID = rcSummary?.storeTransactionID
+            let skTxID = storeKitDetails?.transactionID
+            let skOrigID = storeKitDetails?.originalTransactionID
+
+            candidateMap["StoreKit transaction.id"] = (skTxID != nil && skTxID != "-" && !skTxID!.isEmpty) ? skTxID! : "nil"
+            candidateMap["StoreKit originalID"] = (skOrigID != nil && skOrigID != "-" && !skOrigID!.isEmpty) ? skOrigID! : "nil"
+            candidateMap["RevenueCat store_transaction_id"] = (rcStoreTxID != nil && !rcStoreTxID!.isEmpty) ? rcStoreTxID! : "nil"
+            candidateMap["StoreKit Configuration"] = "LocketGold.storekit"
+            candidateMap["Storefront"] = "VNM"
+            candidateMap["Signed Transaction JWS"] = signedTransactionJWS.isEmpty ? "MISSING" : "AVAILABLE (\(signedTransactionJWS.count) chars)"
+
+            // Section 9: Master Fetch Token
+            // Nếu RevenueCat live có: store_transaction_id thì:
+            // master_fetch_token = store_transaction_id
+            // source = REVENUECAT_STORE_TRANSACTION_ID
+            // Nếu không có: master_fetch_token = null
+            if let rcStore = rcStoreTxID, !rcStore.isEmpty {
+                self.masterFetchToken = rcStore
+                self.masterFetchTokenDisplay = rcStore
+                self.masterFetchTokenSource = .revenueCatStoreTransactionID
+            } else {
+                self.masterFetchToken = nil
+                self.masterFetchTokenDisplay = "null"
+                self.masterFetchTokenSource = .unavailable
+            }
+
+            candidateMap["Selected Master Fetch Token"] = self.masterFetchTokenDisplay
+            candidateMap["Selected Source"] = self.masterFetchTokenSource.rawValue
+            candidateMap["Transaction Source"] = transactionSource.rawValue
+            self.candidates = candidateMap
+
+            self.serverExpirationDate = storeKitExpirationDate ?? revenueCatExpirationDate ?? "-"
+            return
+        }
 
         // Xử lý riêng cho RevenueCat Test Store (Section 7, 8, 14)
         if environment == .testStore {
@@ -373,8 +423,52 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Validation Against Apple / Test Store Requirements (Section 9 & 14)
+    // MARK: - Validation Against Apple / Xcode Local / Test Store Requirements
     public func validateCurrentKey() {
+        if environment == .xcodeLocalStoreKit {
+            var reasons: [String] = []
+
+            let isVerified = storeKitDetails?.isVerified == true
+            if !isVerified { reasons.append("StoreKit local transaction chưa được verify qua LocketGold.storekit.") }
+
+            let jwsExists = !signedTransactionJWS.isEmpty
+            if !jwsExists { reasons.append("Thiếu local signed transaction JWS từ StoreKit.") }
+
+            let rcActive = isGoldActive
+            let hasStoreTx = rcSummary?.storeTransactionID != nil && !(rcSummary?.storeTransactionID?.isEmpty ?? true)
+            if !rcActive { reasons.append("Entitlement Gold chưa active trên RevenueCat cho UID '\(appUserID)'.") }
+            if !hasStoreTx { reasons.append("RevenueCat chưa nhận được store_transaction_id từ local StoreKit purchase.") }
+
+            // Section 8 & 10:
+            // Nếu: StoreKit local verified, JWS có thật, RevenueCat nhận subscription, Gold active
+            // thì: final_status = LOCAL_STOREKIT_REVENUECAT_ACTIVE
+            // Nếu không: REVENUECAT_LOCAL_STOREKIT_SYNC_FAILED
+            let determinedStatus: MasterKeyStatus
+            if isVerified && jwsExists && rcActive && hasStoreTx {
+                determinedStatus = .localStoreKitRevenueCatActive
+            } else if isVerified && (!rcActive || !hasStoreTx) {
+                determinedStatus = .revenueCatLocalStoreKitSyncFailed
+            } else {
+                determinedStatus = .storeKitLocalPurchaseRequired
+            }
+
+            self.finalStatus = determinedStatus
+            self.candidates["Final Status"] = determinedStatus.rawValue
+
+            self.validationResult = MasterKeyValidationResult(
+                transactionVerified: isVerified,
+                jwsAvailable: jwsExists,
+                productMatches: storeKitDetails?.productID == productID,
+                notExpired: true,
+                notRevoked: true,
+                appleValid: false, // Xcode Local StoreKit, not Apple Sandbox/Production
+                revenueCatActive: rcActive,
+                finalStatus: determinedStatus,
+                failureReasons: reasons
+            )
+            return
+        }
+
         if environment == .testStore {
             let rcActive = isGoldActive
             let hasStoreTx = rcSummary?.storeTransactionID != nil && !(rcSummary?.storeTransactionID?.isEmpty ?? true)
@@ -627,8 +721,41 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         triggerNotice("Đã xác thực Master Key khớp 100% cho UID '\(self.appUserID)'!")
     }
 
-    // MARK: - Build Raw Debug JSON (Section 10 Output Format)
+    // MARK: - Build Raw Debug JSON (Section 11 Output Format)
     public func buildRawDebugJSON() {
+        if environment == .xcodeLocalStoreKit {
+            let sk = storeKitDetails
+            let rc = rcSummary
+            let jsonDict: [String: Any] = [
+                "app_user_id": self.appUserID,
+                "product_id": self.productID,
+                "transaction_source": "XCODE_LOCAL_STOREKIT",
+                "master_fetch_token": self.masterFetchToken as Any? ?? NSNull(),
+                "master_fetch_token_source": self.masterFetchToken != nil ? "REVENUECAT_STORE_TRANSACTION_ID" : "UNAVAILABLE",
+                "fetch_token": self.fetchToken as Any? ?? NSNull(),
+                "fetch_token_type": "XCODE_LOCAL_STOREKIT_JWS",
+                "storekit": [
+                    "verified": sk?.isVerified ?? false,
+                    "transaction_id": sk?.transactionID ?? "-",
+                    "original_transaction_id": sk?.originalTransactionID ?? "-",
+                    "purchase_date": sk?.purchaseDate ?? "-",
+                    "expiration_date": sk?.expirationDate as Any? ?? NSNull()
+                ],
+                "revenuecat": [
+                    "subscription_active": self.isGoldActive,
+                    "entitlement_gold_active": self.isGoldActive,
+                    "store_transaction_id": rc?.storeTransactionID as Any? ?? NSNull()
+                ],
+                "final_status": self.finalStatus.rawValue
+            ]
+
+            if let data = try? JSONSerialization.data(withJSONObject: jsonDict, options: [.prettyPrinted, .sortedKeys]),
+               let str = String(data: data, encoding: .utf8) {
+                self.rawDebugJSON = str
+            }
+            return
+        }
+
         if environment == .testStore {
             let rc = rcSummary
             let goldEnt = rc?.entitlements[entitlementID]

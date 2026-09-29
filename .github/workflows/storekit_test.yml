@@ -1,4 +1,4 @@
-name: RevenueCat Test Store CI
+name: Xcode Local StoreKit + RevenueCat CI
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  revenuecat-test-store-ci:
-    name: RevenueCat Test Store CI (Automated Test Mode)
+  local-storekit-revenuecat-ci:
+    name: Xcode Local StoreKit + RevenueCat Audit
     runs-on: macos-latest
 
     steps:
@@ -19,6 +19,13 @@ jobs:
           echo "=== KIỂM TRA SYNTAX SWIFT ==="
           swiftc -parse MasterKeyManager.swift
 
+      - name: Validate Local StoreKit Configuration File
+        run: |
+          echo "=== KIỂM TRA FILE LocketGold.storekit ==="
+          test -f LocketGold.storekit || (echo "LocketGold.storekit missing" && exit 1)
+          grep -q "locket_1600_1y" LocketGold.storekit || (echo "Product locket_1600_1y missing" && exit 1)
+          echo "✅ File LocketGold.storekit hợp lệ."
+
       - name: Set up Python & Dependencies
         uses: actions/setup-python@v5
         with:
@@ -27,7 +34,7 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
-      - name: Run RevenueCat Test Store Flow & Validation
+      - name: Run Xcode Local StoreKit & RevenueCat Audit
         env:
           CURRENT_UID: "kqdepzai"
         run: python run_simulation.py
@@ -35,12 +42,12 @@ jobs:
       - name: Display CI Verification Results
         run: |
           echo "================================================================================"
-          echo "KẾT QUẢ TỪ FILE KQ.TXT (REVENUECAT TEST STORE CI)"
+          echo "KẾT QUẢ TỪ FILE KQ.TXT (XCODE LOCAL STOREKIT + REVENUECAT AUDIT)"
           echo "================================================================================"
           cat kq.txt
 
       - name: Upload CI Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: revelocket-test-store-ci
+          name: revelocket-local-storekit-ci
           path: kq.txt

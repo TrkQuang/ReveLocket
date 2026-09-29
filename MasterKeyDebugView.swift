@@ -109,13 +109,14 @@ struct MasterKeyDebugView: View {
                 statusBadge(viewModel.finalStatus)
             }
 
-            // Environment Switcher (Section 14)
+            // Environment Switcher (Section 1 & 14)
             Picker("Môi trường", selection: Binding(
                 get: { viewModel.environment },
                 set: { newEnv in Task { await viewModel.switchEnvironment(newEnv) } }
             )) {
-                Text("Test Store (Web/Sandbox)").tag(RevenueCatEnvironment.testStore)
-                Text("App Store (StoreKit 2)").tag(RevenueCatEnvironment.appStore)
+                Text("Xcode Local (.storekit)").tag(RevenueCatEnvironment.xcodeLocalStoreKit)
+                Text("App Store").tag(RevenueCatEnvironment.appStore)
+                Text("Test Store").tag(RevenueCatEnvironment.testStore)
             }
             .pickerStyle(SegmentedPickerStyle())
 
