@@ -64,37 +64,36 @@ try {
     exit 1
 }
 
-$hasAppleSub = ($subscriptions -and $subscriptions.PSObject.Properties[$ExpectedProduct] -and $subscriptions.$ExpectedProduct.store -eq "app_store")
-$masterKeyVault = "590002827695092"
-$vaultExpiration = "2026-10-09T08:52:13Z"
+$hasAppleSub = ($subscriptions -and $subscriptions.PSObject.Properties[$ExpectedProduct] -and $subscriptions.$ExpectedProduct.store -eq "app_store" -and $subscriptions.$ExpectedProduct.store_transaction_id)
 
 if ($hasAppleSub) {
-    $applePurchaseStatus = "EXECUTED (Apple Verified on Server)"
     $masterFetchToken = $subscriptions.$ExpectedProduct.store_transaction_id
     $storeTxDisplay = $subscriptions.$ExpectedProduct.store_transaction_id
     $rcActiveDisplay = "YES"
-    $sandboxRequired = "NO (Already active on server)"
     $finalStatus = "VERIFIED_ACTIVE"
-} elseif ($masterKeyVault) {
-    $applePurchaseStatus = "BYPASSED (Kích hoạt qua Kho Khóa - Không cần Apple ID Sandbox)"
-    $masterFetchToken = $masterKeyVault
-    $storeTxDisplay = $masterKeyVault
-    $rcActiveDisplay = "YES (Master Key Vault Verified)"
-    $sandboxRequired = "KHÔNG CẦN (Dùng Master Fetch Token 590002827695092)"
-    $finalStatus = "VERIFIED_ACTIVE"
+    $liveActive = $true
 } else {
-    $applePurchaseStatus = "NOT EXECUTED IN CI (DEVICE/SANDBOX ENVIRONMENT REQUIRED)"
     $masterFetchToken = "NONE"
     $storeTxDisplay = "NONE"
     $rcActiveDisplay = "NO"
-    $sandboxRequired = "YES"
-    $finalStatus = "APPLE_SANDBOX_PURCHASE_REQUIRED"
+    $finalStatus = "INACTIVE"
+    $liveActive = $false
 }
 
-Write-Host "Apple StoreKit Purchase:`n$applePurchaseStatus`n" -ForegroundColor Green
 Write-Host "Master Fetch Token:`n$masterFetchToken`n" -ForegroundColor Cyan
 Write-Host "Store Transaction:`n$storeTxDisplay`n" -ForegroundColor Cyan
-Write-Host "Hạn Dùng Máy Chủ:`n$vaultExpiration`n" -ForegroundColor Yellow
-Write-Host "Yêu Cầu Apple ID Sandbox:`n$sandboxRequired`n" -ForegroundColor Green
 Write-Host "RevenueCat Subscription Active:`n$rcActiveDisplay`n" -ForegroundColor Green
-Write-Host "Final Status:`n$finalStatus`n" -ForegroundColor Green
+Write-Host "Final Status:`n$finalStatus`n" -ForegroundColor Yellow
+
+$debugObj = @{
+    current_app_user_id = $AppUserId
+    vault_item_owner = $null
+    vault_transaction_id = $null
+    revenuecat_live_subscription_active = $liveActive
+    revenuecat_live_store_transaction_id = if ($hasAppleSub) { $subscriptions.$ExpectedProduct.store_transaction_id } else { $null }
+    transaction_owner_match = $hasAppleSub
+    transaction_id_match = $hasAppleSub
+    final_status = $finalStatus
+}
+$debugJson = $debugObj | ConvertTo-Json -Depth 3
+Write-Host "Debug JSON Output:`n$debugJson`n"

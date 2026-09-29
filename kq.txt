@@ -1,5 +1,5 @@
 ================================================================================
-APPLE APP STORE CONFIG CHECK (CI MODE)
+APPLE APP STORE & REVENUECAT LIVE VALIDATION (CI MODE)
 ================================================================================
 RevenueCat appl key:
 OK
@@ -13,32 +13,37 @@ FOUND
 Product locket_1600_1y:
 FOUND
 
-Apple StoreKit Purchase:
-BYPASSED (Kích hoạt qua Kho Khóa - Không cần Apple ID Sandbox)
-
 Master Fetch Token:
-590002827695092
+NONE
 
 Token Source:
-STOREKIT_TRANSACTION_ID
+NONE
 
 Transaction Source:
-APPLE_PRODUCTION (Master Key Vault)
+NONE
 
 Store Transaction:
-590002827695092
-
-Hạn Dùng Máy Chủ:
-2026-10-09T08:52:13Z
-
-Yêu Cầu Apple ID Sandbox:
-KHÔNG CẦN (Dùng Master Fetch Token 590002827695092)
+NONE
 
 RevenueCat Subscription Active:
-YES (Master Key Vault Verified)
+NO
 
 Final Status:
-VERIFIED_ACTIVE
+INACTIVE
+
+================================================================================
+DEBUG JSON OUTPUT (REQUIREMENT 10)
+================================================================================
+{
+  "current_app_user_id": "1a73l0yKjleF7djpO7oYeP4u8ri1",
+  "vault_item_owner": null,
+  "vault_transaction_id": null,
+  "revenuecat_live_subscription_active": false,
+  "revenuecat_live_store_transaction_id": null,
+  "transaction_owner_match": false,
+  "transaction_id_match": false,
+  "final_status": "INACTIVE"
+}
 
 ================================================================================
 CHI TIẾT ĐỐI SOÁT LIVE REVENUECAT (READ-ONLY)
@@ -49,14 +54,13 @@ Target Offering             : locket_199
 Target Package              : $rc_annual
 Expected Product            : locket_1600_1y
 RevenueCat HTTP Status Code : 200
-Active Subscriptions        : 1
-Active Entitlements         : 1
+Active Subscriptions        : 0
+Active Entitlements         : 0
 Store Transaction ID        : None
 Store Source                : None
 
 LƯU Ý QUAN TRỌNG:
-1. Dự án ĐÃ XÓA HOÀN TOÀN RevenueCat Test Store (Không dùng test_ key, không tạo test_store_token).
-2. KHÔNG CẦN TÀI KHOẢN APPLE ID SANDBOX:
-   - Cách 1: Sử dụng Master Key Vault (Kho Khóa): Master Fetch Token 590002827695092 được kích hoạt trực tiếp thành VERIFIED_ACTIVE.
-   - Cách 2: Sử dụng file cấu hình StoreKit Testing 'LocketGold.storekit' trong Xcode hoặc GitHub Actions macOS runner. Mua test cục bộ ngay lập tức mà không cần bất kỳ tài khoản Apple ID hay Sandbox nào!
+1. Dự án TUYỆT ĐỐI KHÔNG tái sử dụng Master Transaction của UID cũ cho UID mới.
+2. Mỗi UID có trạng thái độc lập dựa trên Live RevenueCat response.
+3. Nếu UID chưa có subscription trên RevenueCat: Final Status = INACTIVE.
 ================================================================================

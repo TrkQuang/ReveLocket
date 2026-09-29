@@ -40,6 +40,12 @@ public final class MasterKeyDebugViewModel: ObservableObject {
     @Published public var isGoldActive: Bool = false
     @Published public var verifiedPackage: Package? = nil
 
+    // MARK: - 6.1 Cross-UID & Owner Validation (Requirements 2, 6, 10)
+    @Published public var vaultItemOwner: String? = nil
+    @Published public var vaultTransactionID: String? = nil
+    @Published public var transactionOwnerMatch: Bool = true
+    @Published public var transactionIdMatch: Bool = false
+
     // MARK: - 7. Right Panel Form (Thêm Master Key Mới Vào Kho)
     @Published public var manualKeyName: String = "Locket Gold Master Key"
     @Published public var manualTokenInput: String = ""
@@ -88,14 +94,6 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         // Đánh giá và build JSON
         evaluateMasterFetchToken()
         validateCurrentKey()
-
-        // Tự động kích hoạt từ Kho Khóa nếu thiết bị chưa có Sandbox login (Không cần Apple ID Sandbox)
-        if masterFetchToken == nil || masterFetchToken == "UNAVAILABLE" {
-            if let activeKey = vaultManager.savedKeys.first(where: { $0.status == .verifiedActive || $0.status == .localStoreKitVerified }) {
-                loadVaultKey(activeKey)
-            }
-        }
-
         buildRawDebugJSON()
 
         isLoading = false
@@ -367,11 +365,13 @@ public final class MasterKeyDebugViewModel: ObservableObject {
                 determinedStatus = .verifiedActive
             } else if isVerified && !rcActive {
                 determinedStatus = .revenueCatSyncFailed
+            } else if !rcActive {
+                determinedStatus = .inactive
             } else {
                 determinedStatus = .appleSandboxPurchaseRequired
             }
         } else {
-            determinedStatus = .appleSandboxPurchaseRequired
+            determinedStatus = rcActive ? .verifiedActive : .inactive
         }
 
         self.finalStatus = determinedStatus
@@ -450,55 +450,114 @@ public final class MasterKeyDebugViewModel: ObservableObject {
         triggerNotice("Đã lưu token (Lookup only)!")
     }
 
-    // MARK: - Kích Hoạt Key Từ Kho Khóa (Hoạt Động 100% Không Cần Apple ID Sandbox)
+    // MARK: - Load Vault Key (Strict Owner Check & Live Validation - ZERO Cross-UID Reuse)
     public func loadVaultKey(_ item: MasterKeyItem) {
+        self.vaultItemOwner = item.appUserID
+        self.vaultTransactionID = item.masterFetchToken
+
+        // 1. Kiểm tra quyền sở hữu UID (Requirement 2 & 6: Tuyệt đối không reuse transaction của UID khác)
+        guard item.appUserID == self.appUserID else {
+            print("❌ [Cross-UID Check] Transaction thuộc UID khác: stored '\(item.appUserID)', current '\(self.appUserID)'")
+            self.transactionOwnerMatch = false
+            self.transactionIdMatch = false
+            self.finalStatus = .transactionOwnerMismatch
+            self.isGoldActive = false
+            self.masterFetchToken = nil
+            self.masterFetchTokenDisplay = "MISMATCH (OWNED BY \(item.appUserID))"
+            self.masterFetchTokenSource = item.tokenSource
+            self.transactionSource = item.transactionSource
+
+            var candidateMap = self.candidates
+            candidateMap["Final Status"] = MasterKeyStatus.transactionOwnerMismatch.rawValue
+            candidateMap["Current UID"] = self.appUserID
+            candidateMap["Stored UID"] = item.appUserID
+            candidateMap["Stored Transaction"] = item.masterFetchToken
+            candidateMap["Owner Check"] = "TRANSACTION_OWNER_MISMATCH (REUSE REJECTED)"
+            self.candidates = candidateMap
+
+            self.errorMessage = "TRANSACTION_OWNER_MISMATCH: Key thuộc về UID '\(item.appUserID)', không thể dùng cho UID '\(self.appUserID)'."
+            buildRawDebugJSON()
+            return
+        }
+
+        self.transactionOwnerMatch = true
+
+        // 2. Kiểm tra Live RevenueCat State của UID hiện tại (Requirement 4: Chỉ active nếu live server có subscription)
+        let liveRcStoreTxID = rcSummary?.storeTransactionID
+        let liveRcActive = isGoldActive && rcSummary?.activeSubscriptions.contains(productID) == true
+
+        guard liveRcActive else {
+            print("❌ [Live RC Check] UID '\(self.appUserID)' chưa có active subscription trên live server.")
+            self.transactionIdMatch = false
+            self.finalStatus = .inactive
+            self.isGoldActive = false
+            self.masterFetchToken = nil
+            self.masterFetchTokenDisplay = "NONE (INACTIVE ON LIVE SERVER)"
+
+            var candidateMap = self.candidates
+            candidateMap["Final Status"] = MasterKeyStatus.inactive.rawValue
+            candidateMap["Live RC Active"] = "NO"
+            candidateMap["Current UID"] = self.appUserID
+            self.candidates = candidateMap
+
+            self.errorMessage = "UID hiện tại chưa có subscription thật trên RevenueCat live. Trạng thái: INACTIVE."
+            buildRawDebugJSON()
+            return
+        }
+
+        // 3. Kiểm tra Store Transaction ID khớp 1-1 với live RevenueCat (Requirement 5)
+        guard let rcStoreTx = liveRcStoreTxID, !rcStoreTx.isEmpty, rcStoreTx == item.masterFetchToken else {
+            print("❌ [Store Transaction Match] Token trong vault '\(item.masterFetchToken)' không khớp live store_transaction_id '\(liveRcStoreTxID ?? "nil")'")
+            self.transactionIdMatch = false
+            self.finalStatus = .invalid
+            self.isGoldActive = false
+            self.errorMessage = "Store Transaction ID không khớp với bản ghi live của RevenueCat."
+            buildRawDebugJSON()
+            return
+        }
+
+        // 4. Khi và chỉ khi cả 3 điều kiện trên thoả mãn mới coi là VERIFIED ACTIVE
+        self.transactionIdMatch = true
         self.masterFetchToken = item.masterFetchToken
         self.masterFetchTokenDisplay = item.masterFetchToken
         self.masterFetchTokenSource = item.tokenSource
         self.transactionSource = item.transactionSource
         self.serverExpirationDate = item.expirationDate
-        self.productID = item.productID
-        self.appUserID = item.appUserID
-        self.finalStatus = item.status
-        self.isGoldActive = (item.status == .verifiedActive || item.status == .localStoreKitVerified)
+        self.finalStatus = .verifiedActive
+        self.isGoldActive = true
 
         var candidateMap = self.candidates
         candidateMap["StoreKit transaction.id"] = item.masterFetchToken
-        candidateMap["RevenueCat store_transaction_id"] = item.masterFetchToken
+        candidateMap["RevenueCat store_transaction_id"] = rcStoreTx
         candidateMap["Selected Master Fetch Token"] = item.masterFetchToken
         candidateMap["Selected Source"] = item.tokenSource.rawValue
         candidateMap["Transaction Source"] = item.transactionSource.rawValue
-        candidateMap["Final Status"] = item.status.rawValue
-        candidateMap["Kích Hoạt Qua"] = "KHO KHÓA MASTER TOKEN (KHÔNG CẦN APPLE ID SANDBOX)"
+        candidateMap["Final Status"] = MasterKeyStatus.verifiedActive.rawValue
+        candidateMap["Owner Check"] = "MATCHED (OWNED BY \(self.appUserID))"
         self.candidates = candidateMap
 
-        self.validationResult = MasterKeyValidationResult(
-            transactionVerified: true,
-            jwsAvailable: true,
-            productMatches: true,
-            notExpired: true,
-            notRevoked: true,
-            appleValid: item.transactionSource.isAppleValid,
-            revenueCatActive: isGoldActive,
-            finalStatus: item.status,
-            failureReasons: []
-        )
-
         buildRawDebugJSON()
-        triggerNotice("Đã kích hoạt Master Key: \(item.masterFetchToken) từ Kho Khóa!")
+        triggerNotice("Đã xác thực Master Key khớp 100% cho UID '\(self.appUserID)'!")
     }
 
-    // MARK: - Build Raw Debug JSON (Requirement 17)
+    // MARK: - Build Raw Debug JSON (Requirement 10 & 17)
     public func buildRawDebugJSON() {
         let sk = storeKitDetails
         let rc = rcSummary
         let v = validationResult
 
         let jsonDict: [String: Any] = [
+            "current_app_user_id": self.appUserID,
+            "vault_item_owner": self.vaultItemOwner as Any? ?? NSNull(),
+            "vault_transaction_id": self.vaultTransactionID as Any? ?? NSNull(),
+            "revenuecat_live_subscription_active": self.isGoldActive,
+            "revenuecat_live_store_transaction_id": rc?.storeTransactionID as Any? ?? NSNull(),
+            "transaction_owner_match": self.transactionOwnerMatch,
+            "transaction_id_match": self.transactionIdMatch,
+            "final_status": self.finalStatus.rawValue,
             "master_fetch_token": self.masterFetchToken as Any? ?? NSNull(),
             "master_fetch_token_source": self.masterFetchTokenSource.rawValue,
             "transaction_source": self.transactionSource.rawValue,
-            "app_user_id": self.appUserID,
             "product_id": self.productID,
             "revenuecat_public_key": self.revenueCatPublicKey,
             "storekit": [
@@ -540,8 +599,7 @@ public final class MasterKeyDebugViewModel: ObservableObject {
                 "not_revoked": v?.notRevoked ?? false,
                 "apple_valid": v?.appleValid ?? false,
                 "revenuecat_active": v?.revenueCatActive ?? false
-            ],
-            "final_status": self.finalStatus.rawValue
+            ]
         ]
 
         if let data = try? JSONSerialization.data(withJSONObject: jsonDict, options: [.prettyPrinted, .sortedKeys]),

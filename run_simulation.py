@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 # ==============================================================================
 
 PUBLIC_KEY = "appl_JngFETzdodyLmCREOlwTUtXdQik"
-APP_USER_ID = "1a73l0yKjleF7djpO7oYeP4u8ri1"
+APP_USER_ID = os.environ.get("CURRENT_UID", "1a73l0yKjleF7djpO7oYeP4u8ri1")
 TARGET_OFFERING = "locket_199"
 TARGET_PACKAGE = "$rc_annual"
 EXPECTED_PRODUCT = "locket_1600_1y"
@@ -32,8 +32,9 @@ headers = {
 }
 
 print("================================================================================")
-print("APPLE APP STORE CONFIG CHECK (ZERO TEST STORE / ZERO FAKE PURCHASE)")
+print("APPLE APP STORE & REVENUECAT LIVE VALIDATION (STRICT NO CROSS-UID REUSE)")
 print("================================================================================")
+print(f"Current App User ID: {APP_USER_ID}")
 
 # 1. Kiểm tra RevenueCat Public Key (appl_...)
 if not PUBLIC_KEY.startswith("appl_"):
@@ -103,51 +104,38 @@ rc_is_sandbox = target_sub.get("is_sandbox")
 rc_purchase_date = target_sub.get("purchase_date")
 rc_expires_date = target_sub.get("expires_date")
 
-# Điều kiện khắt khe (Yêu cầu 6, 7, 8):
-# Chỉ được coi là active khi có transaction thật từ store "app_store"
+# Điều kiện khắt khe (Requirements 4, 5, 8, 12):
+# Chỉ được coi là active khi ĐÚNG UID HIỆN TẠI có transaction thật từ store "app_store" trên live server
 has_apple_subscription = (
     EXPECTED_PRODUCT in subscriptions and 
     rc_store == "app_store" and 
     rc_store_tx_id is not None
 )
 
-MASTER_FETCH_TOKEN_VAULT = "590002827695092"
-MASTER_TOKEN_EXPIRATION = "2026-10-09T08:52:13Z"
-
-# 4. Đánh giá trạng thái StoreKit & Master Fetch Token
-# Không cần tài khoản Apple ID Sandbox khi sử dụng Master Key từ Kho Khóa:
+# 4. Đánh giá trạng thái Subscription Live của UID hiện tại (KHÔNG reuse transaction cũ)
 if has_apple_subscription:
-    apple_purchase_status = "EXECUTED (Apple Verified on Server)"
     master_fetch_token = rc_store_tx_id
     token_source = "REVENUECAT_STORE_TRANSACTION_ID"
     store_tx_display = rc_store_tx_id
     rc_active_display = "YES"
     transaction_source = "APPLE_SANDBOX" if rc_is_sandbox else "APPLE_PRODUCTION"
-    server_exp_display = rc_expires_date or MASTER_TOKEN_EXPIRATION
-    sandbox_required = "NO (Already active on server)"
+    server_exp_display = rc_expires_date or "UNKNOWN"
     final_status = "VERIFIED_ACTIVE"
-elif MASTER_FETCH_TOKEN_VAULT:
-    # Chế độ KHO KHÓA (Master Key Vault):
-    # Dùng Master Fetch Token thật 590002827695092 - Hoạt động ngay 100% KHÔNG CẦN Apple ID Sandbox!
-    apple_purchase_status = "BYPASSED (Kích hoạt qua Kho Khóa - Không cần Apple ID Sandbox)"
-    master_fetch_token = MASTER_FETCH_TOKEN_VAULT
-    token_source = "STOREKIT_TRANSACTION_ID"
-    store_tx_display = MASTER_FETCH_TOKEN_VAULT
-    rc_active_display = "YES (Master Key Vault Verified)"
-    transaction_source = "APPLE_PRODUCTION (Master Key Vault)"
-    server_exp_display = MASTER_TOKEN_EXPIRATION
-    sandbox_required = "KHÔNG CẦN (Dùng Master Fetch Token 590002827695092)"
-    final_status = "VERIFIED_ACTIVE"
+    live_active = True
+    tx_owner_match = True
+    tx_id_match = True
 else:
-    apple_purchase_status = "NOT EXECUTED (DEVICE/SANDBOX ENVIRONMENT REQUIRED)"
+    # Nếu UID chưa có subscription trên RevenueCat live server:
     master_fetch_token = "NONE"
-    token_source = "UNAVAILABLE"
+    token_source = "NONE"
     store_tx_display = "NONE"
     rc_active_display = "NO"
-    transaction_source = "APPLE_SANDBOX"
+    transaction_source = "NONE"
     server_exp_display = "NONE"
-    sandbox_required = "YES"
-    final_status = "APPLE_SANDBOX_PURCHASE_REQUIRED"
+    final_status = "INACTIVE"
+    live_active = False
+    tx_owner_match = False
+    tx_id_match = False
 
 print("Master Fetch Token:")
 print(f"{master_fetch_token}\n")
@@ -161,18 +149,31 @@ print(f"{transaction_source}\n")
 print("Store Transaction:")
 print(f"{store_tx_display}\n")
 
-print("Hạn Dùng Máy Chủ:")
-print(f"{server_exp_display}\n")
-
-print("Yêu Cầu Apple ID Sandbox:")
-print(f"{sandbox_required}\n")
+print("RevenueCat Subscription Active:")
+print(f"{rc_active_display}\n")
 
 print("Final Status:")
 print(f"{final_status}\n")
 
-# 5. Ghi báo cáo chuẩn vào kq.txt
+# 5. Debug Output JSON (Requirement 10)
+debug_json_data = {
+    "current_app_user_id": APP_USER_ID,
+    "vault_item_owner": None,
+    "vault_transaction_id": None,
+    "revenuecat_live_subscription_active": live_active,
+    "revenuecat_live_store_transaction_id": rc_store_tx_id,
+    "transaction_owner_match": tx_owner_match,
+    "transaction_id_match": tx_id_match,
+    "final_status": final_status
+}
+
+print("Debug JSON Output:")
+print(json.dumps(debug_json_data, indent=2))
+print()
+
+# 6. Ghi báo cáo chuẩn vào kq.txt
 ci_report = f"""================================================================================
-APPLE APP STORE CONFIG CHECK (CI MODE)
+APPLE APP STORE & REVENUECAT LIVE VALIDATION (CI MODE)
 ================================================================================
 RevenueCat appl key:
 OK
@@ -186,9 +187,6 @@ FOUND
 Product {EXPECTED_PRODUCT}:
 FOUND
 
-Apple StoreKit Purchase:
-{apple_purchase_status}
-
 Master Fetch Token:
 {master_fetch_token}
 
@@ -201,17 +199,16 @@ Transaction Source:
 Store Transaction:
 {store_tx_display}
 
-Hạn Dùng Máy Chủ:
-{server_exp_display}
-
-Yêu Cầu Apple ID Sandbox:
-{sandbox_required}
-
 RevenueCat Subscription Active:
 {rc_active_display}
 
 Final Status:
 {final_status}
+
+================================================================================
+DEBUG JSON OUTPUT (REQUIREMENT 10)
+================================================================================
+{json.dumps(debug_json_data, indent=2)}
 
 ================================================================================
 CHI TIẾT ĐỐI SOÁT LIVE REVENUECAT (READ-ONLY)
@@ -228,10 +225,9 @@ Store Transaction ID        : {rc_store_tx_id if rc_store_tx_id else "None"}
 Store Source                : {rc_store if rc_store else "None"}
 
 LƯU Ý QUAN TRỌNG:
-1. Dự án ĐÃ XÓA HOÀN TOÀN RevenueCat Test Store (Không dùng test_ key, không tạo test_store_token).
-2. KHÔNG CẦN TÀI KHOẢN APPLE ID SANDBOX:
-   - Cách 1: Sử dụng Master Key Vault (Kho Khóa): Master Fetch Token {master_fetch_token} được kích hoạt trực tiếp thành {final_status}.
-   - Cách 2: Sử dụng file cấu hình StoreKit Testing 'LocketGold.storekit' trong Xcode hoặc GitHub Actions macOS runner. Mua test cục bộ ngay lập tức mà không cần bất kỳ tài khoản Apple ID hay Sandbox nào!
+1. Dự án TUYỆT ĐỐI KHÔNG tái sử dụng Master Transaction của UID cũ cho UID mới.
+2. Mỗi UID có trạng thái độc lập dựa trên Live RevenueCat response.
+3. Nếu UID chưa có subscription trên RevenueCat: Final Status = INACTIVE.
 ================================================================================
 """
 

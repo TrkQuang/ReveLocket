@@ -32,6 +32,8 @@ public enum PurchaseEnvironment: String, Codable, CaseIterable {
 // MARK: - 2. Final Verification Status
 public enum MasterKeyStatus: String, Codable, CaseIterable {
     case verifiedActive = "VERIFIED_ACTIVE"
+    case inactive = "INACTIVE"
+    case transactionOwnerMismatch = "TRANSACTION_OWNER_MISMATCH"
     case localStoreKitVerified = "LOCAL_STOREKIT_VERIFIED"
     case localTestOnly = "LOCAL STOREKIT TEST ONLY"
     case appleSandboxPurchaseRequired = "APPLE_SANDBOX_PURCHASE_REQUIRED"
@@ -43,6 +45,8 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
     public var badgeColor: Color {
         switch self {
         case .verifiedActive: return .green
+        case .inactive: return .gray
+        case .transactionOwnerMismatch: return .red
         case .localStoreKitVerified: return .yellow
         case .localTestOnly: return .yellow
         case .appleSandboxPurchaseRequired: return .orange
@@ -55,6 +59,8 @@ public enum MasterKeyStatus: String, Codable, CaseIterable {
     public var badgeIcon: String {
         switch self {
         case .verifiedActive: return "checkmark.seal.fill"
+        case .inactive: return "minus.circle.fill"
+        case .transactionOwnerMismatch: return "person.crop.circle.badge.xmark"
         case .localStoreKitVerified: return "checkmark.shield.fill"
         case .localTestOnly: return "exclamationmark.triangle.fill"
         case .appleSandboxPurchaseRequired: return "cart.badge.questionmark"
@@ -80,6 +86,7 @@ public struct MasterKeyItem: Identifiable, Codable {
     public let id: UUID
     public var name: String
     public var masterFetchToken: String
+    public var originalTransactionID: String?
     public var tokenSource: MasterTokenSource
     public var transactionSource: TransactionSource
     public var status: MasterKeyStatus
@@ -89,22 +96,28 @@ public struct MasterKeyItem: Identifiable, Codable {
     public var isManualInput: Bool
     public var addedDate: Date
 
+    // Helper Aliases & Owner Verification
+    public var ownerAppUserID: String { return appUserID }
+    public var transactionID: String { return masterFetchToken }
+
     public init(
         id: UUID = UUID(),
         name: String,
         masterFetchToken: String,
+        originalTransactionID: String? = nil,
         tokenSource: MasterTokenSource,
         transactionSource: TransactionSource,
         status: MasterKeyStatus,
         expirationDate: String,
         productID: String = "locket_1600_1y",
-        appUserID: String = "1a73l0yKjleF7djpO7oYeP4u8ri1",
+        appUserID: String,
         isManualInput: Bool = false,
         addedDate: Date = Date()
     ) {
         self.id = id
         self.name = name
         self.masterFetchToken = masterFetchToken
+        self.originalTransactionID = originalTransactionID
         self.tokenSource = tokenSource
         self.transactionSource = transactionSource
         self.status = status
@@ -147,14 +160,14 @@ public final class MasterKeyVaultManager: ObservableObject {
     }
 
     public func addKey(_ item: MasterKeyItem) {
-        // Bảo vệ: Nếu là nhập tay, không cho phép gán trạng thái VERIFIED ACTIVE
+        // Bảo vệ: Nếu là nhập tay hoặc chưa verify qua Live RevenueCat/StoreKit, không cho phép gán trạng thái VERIFIED ACTIVE
         var sanitizedItem = item
         if sanitizedItem.isManualInput && sanitizedItem.status == .verifiedActive {
             sanitizedItem.status = .invalid
             print("⚠️ [MasterKeyVault] Từ chối cấp quyền VERIFIED ACTIVE cho token nhập tay mà không có verified Apple transaction record.")
         }
 
-        savedKeys.removeAll { $0.masterFetchToken == sanitizedItem.masterFetchToken }
+        savedKeys.removeAll { $0.masterFetchToken == sanitizedItem.masterFetchToken && $0.appUserID == sanitizedItem.appUserID }
         savedKeys.insert(sanitizedItem, at: 0)
         persistVault()
     }
@@ -169,6 +182,11 @@ public final class MasterKeyVaultManager: ObservableObject {
         persistVault()
     }
 
+    // Lọc theo App User ID - Tuyệt đối không cho phép cross-UID reuse
+    public func keys(for appUserID: String) -> [MasterKeyItem] {
+        return savedKeys.filter { $0.appUserID == appUserID }
+    }
+
     private func persistVault() {
         if let data = try? JSONEncoder().encode(savedKeys) {
             UserDefaults.standard.set(data, forKey: storageKey)
@@ -176,25 +194,13 @@ public final class MasterKeyVaultManager: ObservableObject {
     }
 
     private func loadVault() {
+        // Tuyệt đối KHÔNG hardcode bất kỳ token nào
+        // Vault chỉ là cache lưu trữ các key người dùng đã xác thực, nếu trống thì để mảng rỗng
         if let data = UserDefaults.standard.data(forKey: storageKey),
-           let items = try? JSONDecoder().decode([MasterKeyItem].self, from: data),
-           !items.isEmpty {
+           let items = try? JSONDecoder().decode([MasterKeyItem].self, from: data) {
             self.savedKeys = items
         } else {
-            // Seed Master Key đang hoạt động (590002827695092) - Người dùng kích hoạt ngay KHÔNG CẦN Apple ID Sandbox
-            let defaultActiveKey = MasterKeyItem(
-                name: "Locket Gold Master Key",
-                masterFetchToken: "590002827695092",
-                tokenSource: .storeKitTransactionID,
-                transactionSource: .appleProduction,
-                status: .verifiedActive,
-                expirationDate: "2026-10-09T08:52:13Z",
-                productID: "locket_1600_1y",
-                appUserID: "1a73l0yKjleF7djpO7oYeP4u8ri1",
-                isManualInput: false
-            )
-            self.savedKeys = [defaultActiveKey]
-            persistVault()
+            self.savedKeys = []
         }
     }
 }

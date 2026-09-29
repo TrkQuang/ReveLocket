@@ -109,6 +109,41 @@ struct MasterKeyDebugView: View {
                 statusBadge(viewModel.finalStatus)
             }
 
+            // Cảnh báo Cross-UID Mismatch nếu có (Requirement 6)
+            if !viewModel.transactionOwnerMatch || viewModel.finalStatus == .transactionOwnerMismatch {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "exclamationmark.octagon.fill")
+                            .foregroundColor(.red)
+                        Text("CẢNH BÁO: TRANSACTION_OWNER_MISMATCH")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.red)
+                    }
+                    Text("Tuyệt đối KHÔNG tái sử dụng transaction của UID khác cho UID hiện tại!")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+
+                    Divider()
+
+                    Text("Current UID: \(viewModel.appUserID)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.cyan)
+
+                    Text("Stored UID: \(viewModel.vaultItemOwner ?? "-")")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.orange)
+
+                    Text("Stored Transaction: \(viewModel.vaultTransactionID ?? "-")")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.orange)
+                }
+                .padding(10)
+                .background(Color.red.opacity(0.12))
+                .cornerRadius(8)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.4), lineWidth: 1))
+            }
+
             Divider()
 
             // Card: Thời Gian Còn Lại Của Token Master
@@ -278,25 +313,6 @@ struct MasterKeyDebugView: View {
                 }
                 .disabled(viewModel.verifiedPackage == nil || viewModel.isLoading)
 
-                // Nút Kích Hoạt Nhanh Qua Kho Khóa (Không cần Sandbox)
-                Button(action: {
-                    if let activeKey = vaultManager.savedKeys.first(where: { $0.status == .verifiedActive || $0.status == .localStoreKitVerified }) {
-                        viewModel.loadVaultKey(activeKey)
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "key.fill")
-                        Text("Kích Hoạt Master Key Từ Kho (Không Cần Sandbox)")
-                            .fontWeight(.bold)
-                    }
-                    .font(.caption)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.green.opacity(0.85))
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
-                }
-
                 HStack(spacing: 8) {
                     actionButton(title: "Refresh Transaction", icon: "arrow.clockwise") {
                         Task { await viewModel.refreshAll() }
@@ -338,7 +354,7 @@ struct MasterKeyDebugView: View {
                         .fontWeight(.bold)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text("Chạm để kích hoạt")
+                    Text("Chạm để kiểm định")
                         .font(.caption2)
                         .foregroundColor(.cyan)
                 }
@@ -367,6 +383,24 @@ struct MasterKeyDebugView: View {
                                 Text(item.masterFetchToken)
                                     .font(.system(size: 11, design: .monospaced))
                                     .foregroundColor(.cyan)
+
+                                HStack(spacing: 4) {
+                                    Text("UID:")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.secondary)
+                                    Text(item.appUserID)
+                                        .font(.system(size: 9, design: .monospaced))
+                                        .foregroundColor(item.appUserID == viewModel.appUserID ? .green : .red)
+                                    if item.appUserID != viewModel.appUserID {
+                                        Text("KHÁC UID")
+                                            .font(.system(size: 8, weight: .heavy))
+                                            .padding(.horizontal, 3)
+                                            .padding(.vertical, 1)
+                                            .background(Color.red)
+                                            .foregroundColor(.white)
+                                            .cornerRadius(3)
+                                    }
+                                }
                             }
                             Spacer()
                             statusBadge(item.status, isSmall: true)
@@ -376,7 +410,7 @@ struct MasterKeyDebugView: View {
                         .cornerRadius(8)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(viewModel.masterFetchToken == item.masterFetchToken ? Color.accentColor : Color.clear, lineWidth: 1)
+                                .stroke(item.appUserID != viewModel.appUserID ? Color.red.opacity(0.5) : (viewModel.masterFetchToken == item.masterFetchToken ? Color.accentColor : Color.clear), lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
